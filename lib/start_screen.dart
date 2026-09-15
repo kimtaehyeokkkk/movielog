@@ -28,7 +28,7 @@ class StartScreen extends StatelessWidget {
               const SizedBox(height: 40),
               const Icon(
                 Icons.movie_outlined,
-                size: 80,
+                size: 72,
                 color: Color(0xFF4F378A),
                 semanticLabel: 'MovieLog 로고',
               ),
