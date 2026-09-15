@@ -15,7 +15,7 @@ void main() {
     await tester.pumpWidget(const MovieLogApp());
 
     // Verify that the start screen title is shown.
-    expect(find.text('영화의 순간을 기록하세요'), findsOneWidget);
+    expect(find.text('영화의 순간을\n기록하세요'), findsOneWidget);
     expect(find.text('시작하기'), findsOneWidget);
   });
 }
