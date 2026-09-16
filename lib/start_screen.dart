@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:movielog/theme/app_colors.dart';
 
 class StartScreen extends StatelessWidget {
   const StartScreen({super.key});
@@ -31,6 +32,10 @@ class StartScreen extends StatelessWidget {
                 'assets/logos/movielog_logo.svg',
                 width: 80,
                 height: 80,
+                colorFilter: const ColorFilter.mode(
+                  AppColors.violet,
+                  BlendMode.srcIn,
+                ),
                 semanticsLabel: 'MovieLog 로고',
               ),
               const SizedBox(height: 40),

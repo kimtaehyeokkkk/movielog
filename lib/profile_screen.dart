@@ -82,9 +82,9 @@ class ProfileHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        OutlinedButton(
+        TextButton(
           onPressed: () {},
-          style: OutlinedButton.styleFrom(
+          style: TextButton.styleFrom(
             foregroundColor: AppColors.violet,
             side: const BorderSide(color: AppColors.violet, width: 1),
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
