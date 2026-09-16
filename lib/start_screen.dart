@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class StartScreen extends StatelessWidget {
   const StartScreen({super.key});
@@ -26,11 +27,11 @@ class StartScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 40),
-              const Icon(
-                Icons.movie_outlined,
-                size: 72,
-                color: Color(0xFF4F378A),
-                semanticLabel: 'MovieLog 로고',
+              SvgPicture.asset(
+                'assets/logos/movielog_logo.svg',
+                width: 80,
+                height: 80,
+                semanticsLabel: 'MovieLog 로고',
               ),
               const SizedBox(height: 40),
               const Text(
