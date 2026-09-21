@@ -28,7 +28,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool _emailTouched = false;
   bool _passwordTouched = false;
 
-  static final _emailRegex = RegExp(r'^[\w\.\-]+@[\w\-]+\.[\w\.\-]+$');
+  static final _emailRegex =
+      RegExp(r'^[\w.+-]+@[\w-]+(\.[\w-]+)+$');
 
   @override
   void initState() {
