@@ -77,21 +77,23 @@ const movies = [
   ),
 ];
 
+const genreOptions = [
+  '드라마',
+  'SF',
+  '애니메이션',
+  '스릴러',
+  '로맨스',
+  '액션',
+  '코미디',
+  '판타지',
+  '다큐멘터리',
+];
+
 Movie? findMovieById(int? id) {
   for (final movie in movies) {
     if (movie.id == id) return movie;
   }
   return null;
-}
-
-List<String> get allGenres {
-  final genres = <String>[];
-  for (final movie in movies) {
-    for (final genre in movie.genres) {
-      if (!genres.contains(genre)) genres.add(genre);
-    }
-  }
-  return genres;
 }
 
 List<Movie> get popularMovies {
