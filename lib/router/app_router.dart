@@ -21,25 +21,34 @@ class AppRouter {
         path: '/register',
         builder: (context, state) => const SignUpScreen(),
       ),
-      ShellRoute(
-        builder: (context, state, child) {
-          return MainScreen(
-            currentIndex: indexFromLocation(state.uri.path),
-            child: child,
-          );
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) {
+          return MainScreen(navigationShell: navigationShell);
         },
-        routes: [
-          GoRoute(
-            path: '/home',
-            builder: (context, state) => const HomeScreen(),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/home',
+                builder: (context, state) => const HomeScreen(),
+              ),
+            ],
           ),
-          GoRoute(
-            path: '/movies',
-            builder: (context, state) => const MovieListScreen(),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/movies',
+                builder: (context, state) => const MovieListScreen(),
+              ),
+            ],
           ),
-          GoRoute(
-            path: '/my',
-            builder: (context, state) => const ProfileScreen(),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/my',
+                builder: (context, state) => const ProfileScreen(),
+              ),
+            ],
           ),
         ],
       ),
@@ -51,10 +60,4 @@ class AppRouter {
       ),
     ],
   );
-
-  static int indexFromLocation(String path) {
-    if (path.startsWith('/movies')) return 1;
-    if (path.startsWith('/my')) return 2;
-    return 0;
-  }
 }
