@@ -18,6 +18,14 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   bool _isFavorite = false;
   double? _myRating;
 
+  void _goBack() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/movies');
+    }
+  }
+
   void _toggleFavorite() {
     setState(() {
       _isFavorite = !_isFavorite;
@@ -68,7 +76,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
 
     if (movie == null) {
       return Scaffold(
-        appBar: CommonAppBar(title: '영화 상세', onBack: () => context.pop()),
+        appBar: CommonAppBar(title: '영화 상세', onBack: _goBack),
         body: const Center(child: Text('영화를 찾을 수 없습니다.')),
       );
     }
@@ -79,7 +87,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     return Scaffold(
       appBar: CommonAppBar(
         title: 'Cinema Archive',
-        onBack: () => context.pop(),
+        onBack: _goBack,
       ),
       body: SingleChildScrollView(
         child: Column(
