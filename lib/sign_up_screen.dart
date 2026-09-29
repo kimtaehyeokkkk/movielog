@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:movielog/widgets/common_app_bar.dart';
 import 'package:movielog/widgets/movielog_text_form_field.dart';
 import 'package:movielog/widgets/terms_agreement.dart';
+import 'package:go_router/go_router.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -154,10 +155,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         _hasError(_passwordTouched, _validatePassword, _passwordController.text);
 
     return Scaffold(
-      appBar: CommonAppBar(
-        title: '회원가입',
-        onBack: () => Navigator.of(context).pop(),
-      ),
+      appBar: const CommonAppBar(title: '회원가입'),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -291,6 +289,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 content: Text('회원가입이 완료되었습니다.'),
                               ),
                             );
+                            context.go('/home');
                           },
                         ),
                       ],
