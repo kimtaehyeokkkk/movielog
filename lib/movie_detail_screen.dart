@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:go_router/go_router.dart';
 import 'package:movielog/data/mock_movies.dart';
-import 'package:movielog/models/movie.dart';
 import 'package:movielog/widgets/common_app_bar.dart';
 import 'package:movielog/widgets/rating_dialog.dart';
 
@@ -34,10 +33,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       );
   }
 
-  Future<void> _openRatingDialog(Movie movie) async {
+  Future<void> _openRatingDialog() async {
     final rating = await showDialog<double>(
       context: context,
-      builder: (context) => RatingDialog(movieTitle: movie.title),
+      builder: (context) => RatingDialog(initialRating: _myRating ?? 0),
     );
 
     if (rating == null || !mounted) return;
@@ -110,8 +109,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                         rating: movie.rating,
                         itemCount: 5,
                         itemSize: 18,
+                        unratedColor: colorScheme.primary.withValues(alpha: 0.2),
                         itemBuilder: (context, index) =>
-                            const Icon(Icons.star, color: Colors.amber),
+                            Icon(Icons.star, color: colorScheme.primary),
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -164,7 +164,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: () => _openRatingDialog(movie),
+                  onPressed: _openRatingDialog,
                   icon: const Icon(Icons.rate_review),
                   label: const Text('평점 남기기'),
                 ),

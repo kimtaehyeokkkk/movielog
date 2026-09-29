@@ -2,20 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:movielog/widgets/movie_rating_input.dart';
 
 class RatingDialog extends StatefulWidget {
-  const RatingDialog({super.key, required this.movieTitle});
+  const RatingDialog({super.key, this.initialRating = 0});
 
-  final String movieTitle;
+  final double initialRating;
 
   @override
   State<RatingDialog> createState() => _RatingDialogState();
 }
 
 class _RatingDialogState extends State<RatingDialog> {
-  double _rating = 0;
+  late double _rating = widget.initialRating;
+  int _resetCount = 0;
+
+  void _resetRating() {
+    setState(() {
+      _rating = 0;
+      _resetCount++;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Dialog(
       child: Padding(
@@ -23,11 +32,10 @@ class _RatingDialogState extends State<RatingDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('영화는 어떠셨나요?', style: textTheme.titleLarge),
-            const SizedBox(height: 4),
-            Text(widget.movieTitle, style: textTheme.bodyMedium),
+            Text('영화는 어떠셨나요?', style: textTheme.titleMedium),
             const SizedBox(height: 24),
             MovieRatingInput(
+              key: ValueKey(_resetCount),
               rating: _rating,
               onChanged: (value) {
                 setState(() {
@@ -35,30 +43,25 @@ class _RatingDialogState extends State<RatingDialog> {
                 });
               },
             ),
-            const SizedBox(height: 8),
-            Text(
-              _rating == 0 ? '별을 눌러 평점을 선택해주세요' : '${_rating.toStringAsFixed(1)}점',
-              style: textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('취소'),
-                  ),
+            if (_rating > 0) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: _resetRating,
+                child: const Text('다시 선택하기'),
+              ),
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: colorScheme.primary,
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: _rating == 0
-                        ? null
-                        : () => Navigator.pop(context, _rating),
-                    child: const Text('저장'),
-                  ),
-                ),
-              ],
+                onPressed: _rating == 0
+                    ? null
+                    : () => Navigator.pop(context, _rating),
+                child: const Text('확인'),
+              ),
             ),
           ],
         ),
