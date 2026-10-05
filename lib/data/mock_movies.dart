@@ -75,6 +75,18 @@ const movies = [
     synopsis: '시놉시스 6',
     tags: ['액션', '첩보', '코미디'],
   ),
+  Movie(
+    id: 7,
+    title: '도시의 선',
+    genres: ['다큐멘터리'],
+    year: 2023,
+    runtimeMinutes: 98,
+    rating: 4.1,
+    ratingCount: 428,
+    posterAsset: 'assets/images/posters/poster_city_line.jpg',
+    synopsis: '시놉시스 7',
+    tags: ['다큐멘터리', '건축', '도시'],
+  ),
 ];
 
 const genreOptions = [
