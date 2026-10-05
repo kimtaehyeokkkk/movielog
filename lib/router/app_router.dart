@@ -38,13 +38,7 @@ class AppRouter {
             routes: [
               GoRoute(
                 path: '/movies',
-                builder: (context, state) {
-                  final raw = state.uri.queryParameters['genres'];
-                  final selectedGenres = raw == null || raw.isEmpty
-                      ? <String>{}
-                      : raw.split(',').toSet();
-                  return MovieListScreen(selectedGenres: selectedGenres);
-                },
+                builder: (context, state) => const MovieListScreen(),
               ),
             ],
           ),

@@ -1,98 +1,120 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:movielog/data/mock_movies.dart';
+import 'package:movielog/models/movie.dart';
+import 'package:movielog/services/fake_movie_service.dart';
+import 'package:movielog/services/genre_preference.dart';
 import 'package:movielog/widgets/common_app_bar.dart';
-import 'package:movielog/widgets/genre_filter_sheet.dart';
-import 'package:movielog/widgets/movie_card.dart';
+import 'package:movielog/widgets/genre_chip_bar.dart';
+import 'package:movielog/widgets/movie_grid.dart';
+import 'package:movielog/widgets/movie_list_empty.dart';
+import 'package:movielog/widgets/movie_list_error.dart';
+import 'package:movielog/widgets/movie_list_loading.dart';
 
-class MovieListScreen extends StatelessWidget {
-  const MovieListScreen({super.key, required this.selectedGenres});
+const _allGenre = '전체';
 
-  final Set<String> selectedGenres;
+class MovieListInitialData {
+  const MovieListInitialData({
+    required this.movies,
+    required this.selectedGenre,
+  });
 
-  Future<void> _openFilterSheet(BuildContext context) async {
-    final result = await showModalBottomSheet<Set<String>>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (context) => GenreFilterSheet(
-        genres: genreOptions,
-        initialSelected: selectedGenres,
-      ),
+  final List<Movie> movies;
+  final String selectedGenre;
+}
+
+class MovieListScreen extends StatefulWidget {
+  const MovieListScreen({super.key});
+
+  @override
+  State<MovieListScreen> createState() => _MovieListScreenState();
+}
+
+class _MovieListScreenState extends State<MovieListScreen> {
+  final _movieService = const FakeMovieService();
+  final _genrePreference = GenrePreference();
+
+  late Future<MovieListInitialData> _initialDataFuture;
+  String? _selectedGenre;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialDataFuture = _loadInitialData();
+  }
+
+  Future<MovieListInitialData> _loadInitialData() async {
+    final results = await Future.wait([
+      _movieService.fetchMovies(),
+      _genrePreference.read(),
+    ]);
+
+    return MovieListInitialData(
+      movies: results[0] as List<Movie>,
+      selectedGenre: results[1] as String,
     );
+  }
 
-    if (result == null || !context.mounted) return;
+  void _retry() {
+    setState(() {
+      _selectedGenre = null;
+      _initialDataFuture = _loadInitialData();
+    });
+  }
 
-    final ordered = genreOptions.where(result.contains).toList();
-    final location = Uri(
-      path: '/movies',
-      queryParameters: ordered.isEmpty ? null : {'genres': ordered.join(',')},
-    ).toString();
+  Future<void> _selectGenre(String genre) async {
+    setState(() {
+      _selectedGenre = genre;
+    });
 
-    context.go(location);
+    await _genrePreference.save(genre);
+
+    if (!mounted) return;
+  }
+
+  List<Movie> _filter(List<Movie> allMovies, String genre) {
+    if (genre == _allGenre) return allMovies;
+    return allMovies.where((movie) => movie.genres.contains(genre)).toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-    final filteredMovies = selectedGenres.isEmpty
-        ? movies
-        : movies
-            .where((movie) => movie.genres.any(selectedGenres.contains))
-            .toList();
-
     return Scaffold(
       appBar: const CommonAppBar(title: '영화'),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 4, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: selectedGenres.isEmpty
-                      ? const SizedBox.shrink()
-                      : Text(
-                          '${selectedGenres.join(', ')} · ${filteredMovies.length}편',
-                          style: textTheme.bodyMedium,
-                        ),
-                ),
-                IconButton(
-                  tooltip: '장르 필터',
-                  onPressed: () => _openFilterSheet(context),
-                  icon: Badge(
-                    isLabelVisible: selectedGenres.isNotEmpty,
-                    label: Text('${selectedGenres.length}'),
-                    child: Icon(
-                      Icons.filter_list,
-                      color: colorScheme.primary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: filteredMovies.isEmpty
-                ? const Center(child: Text('해당 장르의 영화가 없습니다.'))
-                : GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                    itemCount: filteredMovies.length,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 16,
-                      childAspectRatio: 0.55,
-                    ),
-                    itemBuilder: (context, index) {
-                      return MovieCard(movie: filteredMovies[index]);
-                    },
-                  ),
-          ),
-        ],
+      body: FutureBuilder<MovieListInitialData>(
+        future: _initialDataFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const MovieListLoading();
+          }
+
+          if (snapshot.hasError) {
+            return MovieListError(onRetry: _retry);
+          }
+
+          final data = snapshot.data;
+          if (data == null) {
+            return MovieListError(onRetry: _retry);
+          }
+
+          final currentGenre = _selectedGenre ?? data.selectedGenre;
+          final filtered = _filter(data.movies, currentGenre);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GenreChipBar(
+                genres: const [_allGenre, ...genreOptions],
+                selectedGenre: currentGenre,
+                onSelected: _selectGenre,
+              ),
+              Expanded(
+                child: filtered.isEmpty
+                    ? const MovieListEmpty()
+                    : MovieGrid(movies: filtered),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
