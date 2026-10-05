@@ -4,14 +4,17 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:movielog/data/mock_movies.dart';
 import 'package:movielog/models/movie.dart';
+import 'package:movielog/models/sort_option.dart';
 import 'package:movielog/services/fake_movie_service.dart';
 import 'package:movielog/services/genre_preference.dart';
+import 'package:movielog/services/sort_preference.dart';
 import 'package:movielog/widgets/common_app_bar.dart';
 import 'package:movielog/widgets/genre_chip_bar.dart';
 import 'package:movielog/widgets/movie_grid.dart';
 import 'package:movielog/widgets/movie_list_empty.dart';
 import 'package:movielog/widgets/movie_list_error.dart';
 import 'package:movielog/widgets/movie_list_loading.dart';
+import 'package:movielog/widgets/sort_selector.dart';
 
 const _allGenre = '전체';
 const _requestTimeout = Duration(seconds: 3);
@@ -20,10 +23,12 @@ class MovieListInitialData {
   const MovieListInitialData({
     required this.movies,
     required this.selectedGenre,
+    required this.selectedSort,
   });
 
   final List<Movie> movies;
   final String selectedGenre;
+  final SortOption selectedSort;
 }
 
 class MovieListScreen extends StatefulWidget {
@@ -36,9 +41,11 @@ class MovieListScreen extends StatefulWidget {
 class _MovieListScreenState extends State<MovieListScreen> {
   final _movieService = const FakeMovieService();
   final _genrePreference = GenrePreference();
+  final _sortPreference = SortPreference();
 
   late Future<MovieListInitialData> _initialDataFuture;
   String? _selectedGenre;
+  SortOption? _selectedSort;
   MovieLoadMode _mode = MovieLoadMode.success;
   bool _isErrorShown = false;
 
@@ -55,17 +62,20 @@ class _MovieListScreenState extends State<MovieListScreen> {
     final results = await Future.wait([
       _movieService.fetchMovies(mode: _mode).timeout(_requestTimeout),
       _genrePreference.read(),
+      _sortPreference.read(),
     ]);
 
     return MovieListInitialData(
       movies: results[0] as List<Movie>,
       selectedGenre: results[1] as String,
+      selectedSort: results[2] as SortOption,
     );
   }
 
   void _retry() {
     setState(() {
       _selectedGenre = null;
+      _selectedSort = null;
       _isErrorShown = false;
       _refreshedMovies = null;
       _initialDataFuture = _loadInitialData();
@@ -90,9 +100,9 @@ class _MovieListScreenState extends State<MovieListScreen> {
 
       if (!mounted) return;
 
-      // 실패하면 Error 화면으로 전환해 다시 시도할 수 있게 한다.
       setState(() {
         _selectedGenre = null;
+        _selectedSort = null;
         _refreshedMovies = null;
         _initialDataFuture = Future<MovieListInitialData>.error(error);
       });
@@ -106,6 +116,7 @@ class _MovieListScreenState extends State<MovieListScreen> {
       _mode = mode;
       if (!_isErrorShown) {
         _selectedGenre = null;
+        _selectedSort = null;
         _refreshedMovies = null;
         _initialDataFuture = _loadInitialData();
       }
@@ -118,6 +129,16 @@ class _MovieListScreenState extends State<MovieListScreen> {
     });
 
     await _genrePreference.save(genre);
+
+    if (!mounted) return;
+  }
+
+  Future<void> _selectSort(SortOption option) async {
+    setState(() {
+      _selectedSort = option;
+    });
+
+    await _sortPreference.save(option);
 
     if (!mounted) return;
   }
@@ -184,8 +205,9 @@ class _MovieListScreenState extends State<MovieListScreen> {
 
           _isErrorShown = false;
           final currentGenre = _selectedGenre ?? data.selectedGenre;
+          final currentSort = _selectedSort ?? data.selectedSort;
           final allMovies = _refreshedMovies ?? data.movies;
-          final filtered = _filter(allMovies, currentGenre);
+          final filtered = currentSort.sort(_filter(allMovies, currentGenre));
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -195,6 +217,11 @@ class _MovieListScreenState extends State<MovieListScreen> {
                 selectedGenre: currentGenre,
                 onSelected: _selectGenre,
               ),
+              SortSelector(
+                selected: currentSort,
+                onChanged: _selectSort,
+              ),
+              const SizedBox(height: 8),
               Expanded(
                 child: RefreshIndicator(
                   onRefresh: _refresh,
