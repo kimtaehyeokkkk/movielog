@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:movielog/data/mock_movies.dart';
@@ -12,6 +14,7 @@ import 'package:movielog/widgets/movie_list_error.dart';
 import 'package:movielog/widgets/movie_list_loading.dart';
 
 const _allGenre = '전체';
+const _requestTimeout = Duration(seconds: 3);
 
 class MovieListInitialData {
   const MovieListInitialData({
@@ -47,7 +50,7 @@ class _MovieListScreenState extends State<MovieListScreen> {
 
   Future<MovieListInitialData> _loadInitialData() async {
     final results = await Future.wait([
-      _movieService.fetchMovies(mode: _mode),
+      _movieService.fetchMovies(mode: _mode).timeout(_requestTimeout),
       _genrePreference.read(),
     ]);
 
@@ -117,6 +120,10 @@ class _MovieListScreenState extends State<MovieListScreen> {
                   value: MovieLoadMode.failure,
                   child: Text('failure'),
                 ),
+                PopupMenuItem(
+                  value: MovieLoadMode.slow,
+                  child: Text('slow (Timeout)'),
+                ),
               ],
             ),
         ],
@@ -131,7 +138,10 @@ class _MovieListScreenState extends State<MovieListScreen> {
 
           if (snapshot.hasError) {
             _isErrorShown = true;
-            return MovieListError(onRetry: _retry);
+            return MovieListError(
+              onRetry: _retry,
+              isTimeout: snapshot.error is TimeoutException,
+            );
           }
 
           final data = snapshot.data;
