@@ -61,8 +61,8 @@ class _MovieListScreenState extends State<MovieListScreen> {
   Future<MovieListInitialData> _loadInitialData() async {
     final results = await Future.wait([
       _movieService.fetchMovies(mode: _mode).timeout(_requestTimeout),
-      _genrePreference.read(),
-      _sortPreference.read(),
+      _readGenreOrDefault(),
+      _readSortOrDefault(),
     ]);
 
     return MovieListInitialData(
@@ -70,6 +70,27 @@ class _MovieListScreenState extends State<MovieListScreen> {
       selectedGenre: results[1] as String,
       selectedSort: results[2] as SortOption,
     );
+  }
+
+  // 설정 읽기 실패는 영화 목록 로딩과 분리해 기본값으로 대체한다.
+  Future<String> _readGenreOrDefault() async {
+    try {
+      return await _genrePreference.read();
+    } catch (error, stackTrace) {
+      debugPrint('장르 설정 읽기 실패: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      return _allGenre;
+    }
+  }
+
+  Future<SortOption> _readSortOrDefault() async {
+    try {
+      return await _sortPreference.read();
+    } catch (error, stackTrace) {
+      debugPrint('정렬 설정 읽기 실패: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      return SortOption.rating;
+    }
   }
 
   void _retry() {
@@ -128,9 +149,12 @@ class _MovieListScreenState extends State<MovieListScreen> {
       _selectedGenre = genre;
     });
 
-    await _genrePreference.save(genre);
-
-    if (!mounted) return;
+    try {
+      await _genrePreference.save(genre);
+    } catch (error, stackTrace) {
+      debugPrint('장르 저장 실패: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
   }
 
   Future<void> _selectSort(SortOption option) async {
@@ -138,9 +162,12 @@ class _MovieListScreenState extends State<MovieListScreen> {
       _selectedSort = option;
     });
 
-    await _sortPreference.save(option);
-
-    if (!mounted) return;
+    try {
+      await _sortPreference.save(option);
+    } catch (error, stackTrace) {
+      debugPrint('정렬 저장 실패: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
   }
 
   List<Movie> _filter(List<Movie> allMovies, String genre) {
