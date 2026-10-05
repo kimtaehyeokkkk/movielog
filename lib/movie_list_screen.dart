@@ -42,6 +42,9 @@ class _MovieListScreenState extends State<MovieListScreen> {
   MovieLoadMode _mode = MovieLoadMode.success;
   bool _isErrorShown = false;
 
+  // 당겨서 새로고침으로 받아 온 최신 목록. 있으면 FutureBuilder 결과보다 우선한다.
+  List<Movie>? _refreshedMovies;
+
   @override
   void initState() {
     super.initState();
@@ -64,8 +67,36 @@ class _MovieListScreenState extends State<MovieListScreen> {
     setState(() {
       _selectedGenre = null;
       _isErrorShown = false;
+      _refreshedMovies = null;
       _initialDataFuture = _loadInitialData();
     });
+  }
+
+  // 당겨서 새로고침: 화면 전체를 Loading으로 바꾸지 않고 인디케이터만 보여준다.
+  Future<void> _refresh() async {
+    try {
+      final result = await _movieService
+          .fetchMovies(mode: _mode)
+          .timeout(_requestTimeout);
+
+      if (!mounted) return;
+
+      setState(() {
+        _refreshedMovies = result;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('영화 새로고침 실패: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      // 실패하면 Error 화면으로 전환해 다시 시도할 수 있게 한다.
+      setState(() {
+        _selectedGenre = null;
+        _refreshedMovies = null;
+        _initialDataFuture = Future<MovieListInitialData>.error(error);
+      });
+    }
   }
 
   // 디버그 전용: Error 화면에서는 모드만 바꾸고(다시 시도로 반영),
@@ -75,6 +106,7 @@ class _MovieListScreenState extends State<MovieListScreen> {
       _mode = mode;
       if (!_isErrorShown) {
         _selectedGenre = null;
+        _refreshedMovies = null;
         _initialDataFuture = _loadInitialData();
       }
     });
@@ -152,7 +184,8 @@ class _MovieListScreenState extends State<MovieListScreen> {
 
           _isErrorShown = false;
           final currentGenre = _selectedGenre ?? data.selectedGenre;
-          final filtered = _filter(data.movies, currentGenre);
+          final allMovies = _refreshedMovies ?? data.movies;
+          final filtered = _filter(allMovies, currentGenre);
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -163,9 +196,12 @@ class _MovieListScreenState extends State<MovieListScreen> {
                 onSelected: _selectGenre,
               ),
               Expanded(
-                child: filtered.isEmpty
-                    ? const MovieListEmpty()
-                    : MovieGrid(movies: filtered),
+                child: RefreshIndicator(
+                  onRefresh: _refresh,
+                  child: filtered.isEmpty
+                      ? const MovieListEmpty()
+                      : MovieGrid(movies: filtered),
+                ),
               ),
             ],
           );
