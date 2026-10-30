@@ -35,11 +35,15 @@ class TmdbPosterImage extends StatelessWidget {
       width: width,
       height: height,
       fit: fit,
+      // 내려받는 동안 빈 칸 대신 같은 크기의 배경을 먼저 보여준다.
+      loadingBuilder: (context, child, progress) => progress == null
+          ? child
+          : _placeholder(context, showIcon: false),
       errorBuilder: (context, error, stackTrace) => _placeholder(context),
     );
   }
 
-  Widget _placeholder(BuildContext context) {
+  Widget _placeholder(BuildContext context, {bool showIcon = true}) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
@@ -47,10 +51,12 @@ class TmdbPosterImage extends StatelessWidget {
       height: height,
       color: colorScheme.surfaceContainerHighest,
       alignment: Alignment.center,
-      child: Icon(
-        Icons.image_not_supported_outlined,
-        color: colorScheme.onSurfaceVariant,
-      ),
+      child: showIcon
+          ? Icon(
+              Icons.image_not_supported_outlined,
+              color: colorScheme.onSurfaceVariant,
+            )
+          : null,
     );
   }
 }
