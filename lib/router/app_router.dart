@@ -16,7 +16,7 @@ class AppRouter {
   AppRouter._();
 
   static final router = GoRouter(
-    initialLocation: '/home',
+    initialLocation: '/start',
     routes: [
       GoRoute(
         path: '/start',

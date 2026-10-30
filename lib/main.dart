@@ -14,6 +14,7 @@ Future<void> main() async {
     debugPrint('[TMDB] .env의 TMDB_ACCESS_TOKEN이 비어 있습니다.');
   }
 
-  runDartPractice();
+  // 0주차 Dart 연습 출력은 개발 중에만 확인한다. (release 로그에 남기지 않음)
+  if (kDebugMode) runDartPractice();
   runApp(const MovieLogApp());
 }
