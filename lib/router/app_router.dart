@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
 import 'package:movielog/data/models/tmdb_movie_dto.dart';
+import 'package:movielog/data/services/member_service.dart';
 import 'package:movielog/data/services/tmdb_movie_service.dart';
 import 'package:movielog/home_screen.dart';
 import 'package:movielog/main_screen.dart';
@@ -10,6 +11,8 @@ import 'package:movielog/sign_up_screen.dart';
 import 'package:movielog/start_screen.dart';
 import 'package:movielog/view_models/movie_home_view_model.dart';
 import 'package:movielog/view_models/movie_list_view_model.dart';
+import 'package:movielog/view_models/my_ratings_view_model.dart';
+import 'package:movielog/view_models/sign_up_view_model.dart';
 import 'package:provider/provider.dart';
 
 class AppRouter {
@@ -24,7 +27,10 @@ class AppRouter {
       ),
       GoRoute(
         path: '/register',
-        builder: (context, state) => const SignUpScreen(),
+        builder: (context, state) => ChangeNotifierProvider<SignUpViewModel>(
+          create: (context) => SignUpViewModel(context.read<MemberService>()),
+          child: const SignUpScreen(),
+        ),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
@@ -64,7 +70,15 @@ class AppRouter {
             routes: [
               GoRoute(
                 path: '/my',
-                builder: (context, state) => const ProfileScreen(),
+                builder: (context, state) =>
+                    ChangeNotifierProvider<MyRatingsViewModel>(
+                  create: (context) => MyRatingsViewModel(
+                    context.read<MemberService>(),
+                    // TODO(로그인 API): 로그인한 회원 id로 교체. 지금은 서버 시드 데이터의 1번 회원.
+                    memberId: 1,
+                  )..load(),
+                  child: const ProfileScreen(),
+                ),
               ),
             ],
           ),

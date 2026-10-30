@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:movielog/core/network/movielog_api_client.dart';
 import 'package:movielog/core/network/tmdb_client.dart';
+import 'package:movielog/data/services/member_service.dart';
 import 'package:movielog/data/services/tmdb_movie_service.dart';
 import 'package:movielog/router/app_router.dart';
 import 'package:movielog/theme/app_theme.dart';
@@ -15,6 +17,9 @@ class MovieLogApp extends StatelessWidget {
       providers: [
         Provider<TmdbMovieService>(
           create: (_) => TmdbMovieService(createTmdbClient()),
+        ),
+        Provider<MemberService>(
+          create: (_) => MemberService(createMovieLogApiClient()),
         ),
       ],
       child: MaterialApp.router(
