@@ -79,7 +79,10 @@ class HomeHeroBanner extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(
-                      onPressed: () => context.push('/movies/${movie.id}'),
+                      onPressed: () => context.push(
+                        '/movies/${movie.id}',
+                        extra: movie,
+                      ),
                       icon: const Icon(Icons.info),
                       label: const Text('상세보기'),
                     ),

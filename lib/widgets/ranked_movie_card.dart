@@ -19,7 +19,7 @@ class RankedMovieCard extends StatelessWidget {
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => context.push('/movies/${movie.id}'),
+      onTap: () => context.push('/movies/${movie.id}', extra: movie),
       child: SizedBox(
         width: 130,
         child: Column(

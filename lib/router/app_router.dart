@@ -1,4 +1,5 @@
 import 'package:go_router/go_router.dart';
+import 'package:movielog/data/models/tmdb_movie_dto.dart';
 import 'package:movielog/data/services/tmdb_movie_service.dart';
 import 'package:movielog/home_screen.dart';
 import 'package:movielog/main_screen.dart';
@@ -71,9 +72,14 @@ class AppRouter {
       ),
       GoRoute(
         path: '/movies/:movieId',
-        builder: (context, state) => MovieDetailScreen(
-          movieId: state.pathParameters['movieId']!,
-        ),
+        // 상세 API가 없어서 목록에서 받은 TmdbMovieDto를 extra로 넘겨받는다.
+        builder: (context, state) {
+          final extra = state.extra;
+          return MovieDetailScreen(
+            movieId: int.tryParse(state.pathParameters['movieId']!),
+            movie: extra is TmdbMovieDto ? extra : null,
+          );
+        },
       ),
     ],
   );
