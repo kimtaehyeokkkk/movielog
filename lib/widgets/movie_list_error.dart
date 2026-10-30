@@ -5,10 +5,13 @@ class MovieListError extends StatelessWidget {
     super.key,
     required this.onRetry,
     this.isTimeout = false,
+    this.message,
   });
 
   final VoidCallback onRetry;
   final bool isTimeout;
+  // ViewModel이 넘겨주는 사용자용 문구. 없으면 기본 문구를 쓴다.
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +29,7 @@ class MovieListError extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            isTimeout ? '응답이 지연되고 있습니다.' : '영화를 불러오지 못했습니다.',
+            isTimeout ? '응답이 지연되고 있습니다.' : message ?? '영화를 불러오지 못했습니다.',
             style: textTheme.bodyMedium,
           ),
           const SizedBox(height: 4),

@@ -1,11 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:movielog/models/movie.dart';
+import 'package:movielog/data/models/tmdb_movie_dto.dart';
+import 'package:movielog/widgets/tmdb_poster_image.dart';
 
 class MovieCard extends StatelessWidget {
-  const MovieCard({super.key, required this.movie});
+  const MovieCard({super.key, required this.movie, this.genreName});
 
-  final Movie movie;
+  final TmdbMovieDto movie;
+  final String? genreName;
+
+  // release_date나 장르가 없으면 그 부분만 빼고 표시한다.
+  String get _subtitle {
+    final releaseDate = movie.releaseDate;
+    final year = releaseDate != null && releaseDate.length >= 4
+        ? releaseDate.substring(0, 4)
+        : null;
+    return [?year, ?genreName].join(' · ');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,21 +36,13 @@ class MovieCard extends StatelessWidget {
                 Positioned.fill(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.asset(
-                      movie.posterAsset,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        color: colorScheme.surfaceContainerHighest,
-                        alignment: Alignment.center,
-                        child: const Icon(Icons.movie_outlined),
-                      ),
-                    ),
+                    child: TmdbPosterImage(posterPath: movie.posterPath),
                   ),
                 ),
                 Positioned(
                   top: 8,
                   right: 8,
-                  child: _RatingBadge(rating: movie.rating),
+                  child: _RatingBadge(rating: movie.voteAverage),
                 ),
               ],
             ),
@@ -53,7 +56,9 @@ class MovieCard extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            '${movie.year} · ${movie.primaryGenre}',
+            _subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: textTheme.bodySmall?.copyWith(
               color: colorScheme.onSurfaceVariant,
             ),
