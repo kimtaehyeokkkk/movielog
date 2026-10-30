@@ -97,7 +97,6 @@ flutter:
   assets:
     - .env
     - assets/images/profile/
-    - assets/images/posters/
     - assets/icons/
     - assets/logos/
 
