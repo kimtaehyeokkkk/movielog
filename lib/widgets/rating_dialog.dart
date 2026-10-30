@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:movielog/models/movie_rating.dart';
 import 'package:movielog/widgets/movie_rating_input.dart';
 
 class RatingDialog extends StatefulWidget {
-  const RatingDialog({super.key, this.initialRating = 0});
+  const RatingDialog({
+    super.key,
+    required this.movieId,
+    this.initialRating = 0,
+  });
 
+  // 평점을 남길 영화의 TMDB id. 확인 시 점수와 함께 돌려준다.
+  final int movieId;
   final double initialRating;
 
   @override
@@ -59,7 +66,10 @@ class _RatingDialogState extends State<RatingDialog> {
                 ),
                 onPressed: _rating == 0
                     ? null
-                    : () => Navigator.pop(context, _rating),
+                    : () => Navigator.pop(
+                          context,
+                          MovieRating(movieId: widget.movieId, score: _rating),
+                        ),
                 child: const Text('확인'),
               ),
             ),

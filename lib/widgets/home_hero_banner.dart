@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:movielog/models/movie.dart';
+import 'package:movielog/data/models/tmdb_movie_dto.dart';
+import 'package:movielog/widgets/tmdb_poster_image.dart';
 
 class HomeHeroBanner extends StatelessWidget {
   const HomeHeroBanner({super.key, required this.movie});
 
-  final Movie movie;
+  final TmdbMovieDto movie;
+
+  // release_date가 null이거나 빈 문자열이면 연도를 표시하지 않는다.
+  String get _subtitle {
+    final releaseDate = movie.releaseDate;
+    final rating = '★ ${movie.voteAverage.toStringAsFixed(1)}';
+    if (releaseDate == null || releaseDate.length < 4) return rating;
+    return '${releaseDate.substring(0, 4)} · $rating';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +28,7 @@ class HomeHeroBanner extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Image.asset(movie.posterAsset, fit: BoxFit.cover),
+            TmdbPosterImage(posterPath: movie.posterPath),
             const DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -46,7 +55,7 @@ class HomeHeroBanner extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      '추천 신작',
+                      '인기 1위',
                       style: textTheme.labelSmall?.copyWith(
                         color: colorScheme.onPrimary,
                       ),
@@ -61,7 +70,7 @@ class HomeHeroBanner extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${movie.genres.join(' · ')} · ${movie.runtimeMinutes}분',
+                    _subtitle,
                     style: textTheme.bodyMedium?.copyWith(
                       color: Colors.white70,
                     ),
@@ -70,7 +79,10 @@ class HomeHeroBanner extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(
-                      onPressed: () => context.push('/movies/${movie.id}'),
+                      onPressed: () => context.push(
+                        '/movies/${movie.id}',
+                        extra: movie,
+                      ),
                       icon: const Icon(Icons.info),
                       label: const Text('상세보기'),
                     ),

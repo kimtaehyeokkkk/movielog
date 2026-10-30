@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:movielog/data/mock_movies.dart';
+import 'package:movielog/data/models/tmdb_movie_dto.dart';
 import 'package:movielog/widgets/movie_grid.dart';
 import 'package:movielog/widgets/movie_list_empty.dart';
 import 'package:movielog/widgets/movie_list_error.dart';
@@ -8,6 +8,24 @@ import 'package:movielog/widgets/movie_list_loading.dart';
 
 Widget _wrap(Widget child) {
   return MaterialApp(home: Scaffold(body: child));
+}
+
+TmdbMovieDto _movie({
+  required int id,
+  required String title,
+  String? releaseDate,
+}) {
+  return TmdbMovieDto(
+    id: id,
+    title: title,
+    overview: '',
+    posterPath: null,
+    backdropPath: null,
+    releaseDate: releaseDate,
+    genreIds: const [28],
+    voteAverage: 8.5,
+    popularity: 100,
+  );
 }
 
 void main() {
@@ -66,11 +84,32 @@ void main() {
   });
 
   group('Success', () {
-    testWidgets('영화 제목이 Grid에 표시된다', (tester) async {
-      await tester.pumpWidget(_wrap(MovieGrid(movies: movies.take(2).toList())));
+    testWidgets('영화 제목과 장르 이름이 Grid에 표시된다', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          MovieGrid(
+            movies: [
+              _movie(id: 1, title: '다크 나이트', releaseDate: '2008-07-16'),
+              _movie(id: 2, title: '개봉일 없는 영화'),
+            ],
+            genreNames: const {28: '액션'},
+          ),
+        ),
+      );
 
-      expect(find.text('별빛 아래 우리'), findsOneWidget);
-      expect(find.text('우주의 끝에서'), findsOneWidget);
+      expect(find.text('다크 나이트'), findsOneWidget);
+      expect(find.text('개봉일 없는 영화'), findsOneWidget);
+      expect(find.text('2008 · 액션'), findsOneWidget);
+      // release_date가 없으면 연도 없이 장르만 표시한다.
+      expect(find.text('액션'), findsOneWidget);
+    });
+
+    testWidgets('poster_path가 null이면 placeholder가 표시된다', (tester) async {
+      await tester.pumpWidget(
+        _wrap(MovieGrid(movies: [_movie(id: 1, title: '포스터 없음')])),
+      );
+
+      expect(find.byIcon(Icons.image_not_supported_outlined), findsOneWidget);
     });
   });
 }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:movielog/data/models/tmdb_genre_dto.dart';
 
+// 확인을 누르면 선택한 TMDB 장르 id 목록을 돌려준다. 아무것도 선택하지 않으면 빈 목록("전체").
 class GenreFilterSheet extends StatefulWidget {
   const GenreFilterSheet({
     super.key,
@@ -7,15 +9,15 @@ class GenreFilterSheet extends StatefulWidget {
     required this.initialSelected,
   });
 
-  final List<String> genres;
-  final Set<String> initialSelected;
+  final List<TmdbGenreDto> genres;
+  final Set<int> initialSelected;
 
   @override
   State<GenreFilterSheet> createState() => _GenreFilterSheetState();
 }
 
 class _GenreFilterSheetState extends State<GenreFilterSheet> {
-  late final Set<String> _selected = {...widget.initialSelected};
+  late final Set<int> _selected = {...widget.initialSelected};
 
   @override
   Widget build(BuildContext context) {
@@ -68,14 +70,14 @@ class _GenreFilterSheetState extends State<GenreFilterSheet> {
                   final genre = widget.genres[index];
                   return CheckboxListTile(
                     controlAffinity: ListTileControlAffinity.leading,
-                    value: _selected.contains(genre),
-                    title: Text(genre),
+                    value: _selected.contains(genre.id),
+                    title: Text(genre.name),
                     onChanged: (checked) {
                       setState(() {
                         if (checked == true) {
-                          _selected.add(genre);
+                          _selected.add(genre.id);
                         } else {
-                          _selected.remove(genre);
+                          _selected.remove(genre.id);
                         }
                       });
                     },
@@ -95,7 +97,8 @@ class _GenreFilterSheetState extends State<GenreFilterSheet> {
                       backgroundColor: colorScheme.primary,
                       foregroundColor: colorScheme.onPrimary,
                     ),
-                    onPressed: () => Navigator.pop(context, _selected),
+                    onPressed: () =>
+                        Navigator.pop(context, _selected.toList()),
                     child: const Text('확인'),
                   ),
                 ),

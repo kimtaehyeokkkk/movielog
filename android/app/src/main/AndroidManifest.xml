@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- release 빌드에서도 TMDB API를 호출하기 위해 필요하다. (debug/profile 매니페스트에만 있었음) -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:label="movielog"
         android:name="${applicationName}"
