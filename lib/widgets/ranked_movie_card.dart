@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:movielog/models/movie.dart';
+import 'package:movielog/data/models/tmdb_movie_dto.dart';
+import 'package:movielog/widgets/tmdb_poster_image.dart';
 
 class RankedMovieCard extends StatelessWidget {
   const RankedMovieCard({
@@ -9,7 +10,7 @@ class RankedMovieCard extends StatelessWidget {
     required this.rank,
   });
 
-  final Movie movie;
+  final TmdbMovieDto movie;
   final int rank;
 
   @override
@@ -31,7 +32,7 @@ class RankedMovieCard extends StatelessWidget {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.asset(movie.posterAsset, fit: BoxFit.cover),
+                    child: TmdbPosterImage(posterPath: movie.posterPath),
                   ),
                   Positioned(
                     top: 6,
@@ -69,7 +70,7 @@ class RankedMovieCard extends StatelessWidget {
                 const Icon(Icons.star, size: 14, color: Colors.amber),
                 const SizedBox(width: 2),
                 Text(
-                  movie.rating.toStringAsFixed(1),
+                  movie.voteAverage.toStringAsFixed(1),
                   style: textTheme.bodySmall,
                 ),
               ],
