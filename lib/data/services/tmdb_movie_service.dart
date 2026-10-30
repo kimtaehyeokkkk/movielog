@@ -20,8 +20,12 @@ class TmdbMovieService {
 
   Future<TmdbMoviePageDto> discoverMovies({
     required int page,
-    int? genreId,
+    List<int>? genreIds,
   }) async {
+    // 여러 장르는 OR 조건(|)으로 연결한다. 없으면("전체") null.
+    final withGenres =
+        genreIds == null || genreIds.isEmpty ? null : genreIds.join('|');
+
     final response = await _dio.get(
       '/discover/movie',
       queryParameters: {
@@ -30,8 +34,8 @@ class TmdbMovieService {
         'sort_by': 'popularity.desc',
         'include_adult': false,
         'include_video': false,
-        // genreId가 null이면("전체") with_genres 키 자체를 보내지 않는다.
-        'with_genres': ?genreId,
+        // "전체"면 with_genres 키 자체를 보내지 않는다.
+        'with_genres': ?withGenres,
       },
     );
     return TmdbMoviePageDto.fromJson(

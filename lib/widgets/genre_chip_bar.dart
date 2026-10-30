@@ -5,14 +5,14 @@ class GenreChipBar extends StatelessWidget {
   const GenreChipBar({
     super.key,
     required this.genres,
-    required this.selectedGenreId,
+    required this.selectedGenreIds,
     required this.onSelected,
     this.enabled = true,
   });
 
   final List<TmdbGenreDto> genres;
-  // null이면 "전체"
-  final int? selectedGenreId;
+  // null이면 "전체". BottomSheet로 여러 개를 고르면 해당 Chip이 모두 선택 표시된다.
+  final List<int>? selectedGenreIds;
   final ValueChanged<int?> onSelected;
   final bool enabled;
 
@@ -22,7 +22,10 @@ class GenreChipBar extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     Widget chip({required String label, required int? genreId}) {
-      final isSelected = genreId == selectedGenreId;
+      final selected = selectedGenreIds;
+      final isSelected = genreId == null
+          ? selected == null
+          : selected?.contains(genreId) ?? false;
 
       return ChoiceChip(
         label: Text(label),
