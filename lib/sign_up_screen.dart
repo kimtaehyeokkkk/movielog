@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:movielog/view_models/sign_up_view_model.dart';
 import 'package:movielog/widgets/common_app_bar.dart';
+import 'package:movielog/widgets/duplicate_check_row.dart';
 import 'package:movielog/widgets/movielog_text_form_field.dart';
 import 'package:movielog/widgets/terms_agreement.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -199,11 +202,29 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           autovalidateMode: _nicknameTouched
                               ? AutovalidateMode.always
                               : AutovalidateMode.disabled,
-                          onChanged: (_) => setState(() {}),
+                          onChanged: (_) {
+                            setState(() {});
+                            context.read<SignUpViewModel>().resetNickname();
+                          },
                           onFieldSubmitted: (_) =>
                               _emailFocusNode.requestFocus(),
                         ),
-                        const SizedBox(height: 16),
+                        Consumer<SignUpViewModel>(
+                          builder: (context, viewModel, child) {
+                            final nickname = _nicknameController.text.trim();
+                            final canCheck =
+                                _validateNickname(nickname) == null;
+
+                            return DuplicateCheckRow(
+                              status: viewModel.nicknameStatus,
+                              message: viewModel.nicknameMessage,
+                              onCheck: canCheck
+                                  ? () => viewModel.checkNickname(nickname)
+                                  : null,
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
                         MovieLogTextFormField(
                           controller: _emailController,
                           focusNode: _emailFocusNode,
@@ -223,11 +244,28 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           autovalidateMode: _emailTouched
                               ? AutovalidateMode.always
                               : AutovalidateMode.disabled,
-                          onChanged: (_) => setState(() {}),
+                          onChanged: (_) {
+                            setState(() {});
+                            context.read<SignUpViewModel>().resetEmail();
+                          },
                           onFieldSubmitted: (_) =>
                               _passwordFocusNode.requestFocus(),
                         ),
-                        const SizedBox(height: 16),
+                        Consumer<SignUpViewModel>(
+                          builder: (context, viewModel, child) {
+                            final email = _emailController.text.trim();
+                            final canCheck = _validateEmail(email) == null;
+
+                            return DuplicateCheckRow(
+                              status: viewModel.emailStatus,
+                              message: viewModel.emailMessage,
+                              onCheck: canCheck
+                                  ? () => viewModel.checkEmail(email)
+                                  : null,
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
                         MovieLogTextFormField(
                           controller: _passwordController,
                           focusNode: _passwordFocusNode,
