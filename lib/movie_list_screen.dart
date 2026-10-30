@@ -41,6 +41,15 @@ Future<void> _selectGenres(BuildContext context, List<int>? genreIds) async {
   await _showRetryDialogIfNeeded(context, outcome);
 }
 
+// context는 Consumer builder의 것을 받는다. 재시도 중 목록이 Skeleton으로 바뀌어
+// _RefreshableList가 사라져도 이 context는 남아 있어 Dialog를 다시 띄울 수 있다.
+Future<void> _refreshList(BuildContext context) async {
+  final outcome = await context.read<MovieListViewModel>().refresh();
+  if (!context.mounted) return;
+  // 인디케이터는 바로 닫고, Dialog는 그 뒤에 따로 띄운다.
+  unawaited(_showRetryDialogIfNeeded(context, outcome));
+}
+
 Future<void> _openGenreFilterSheet(BuildContext context) async {
   final viewModel = context.read<MovieListViewModel>();
   final selected = await showModalBottomSheet<List<int>>(
@@ -120,9 +129,11 @@ class MovieListScreen extends StatelessWidget {
                           context.read<MovieListViewModel>().retry(),
                     ),
                   MovieListLoadStatus.empty => _RefreshableList(
+                      onRefresh: () => _refreshList(context),
                       child: const MovieListEmpty(),
                     ),
                   MovieListLoadStatus.success => _RefreshableList(
+                      onRefresh: () => _refreshList(context),
                       child: _MovieListContent(viewModel: viewModel),
                     ),
                 },
@@ -136,21 +147,14 @@ class MovieListScreen extends StatelessWidget {
 }
 
 class _RefreshableList extends StatelessWidget {
-  const _RefreshableList({required this.child});
+  const _RefreshableList({required this.onRefresh, required this.child});
 
+  final RefreshCallback onRefresh;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: () async {
-        final outcome = await context.read<MovieListViewModel>().refresh();
-        if (!context.mounted) return;
-        // 인디케이터는 바로 닫고, Dialog는 그 뒤에 따로 띄운다.
-        unawaited(_showRetryDialogIfNeeded(context, outcome));
-      },
-      child: child,
-    );
+    return RefreshIndicator(onRefresh: onRefresh, child: child);
   }
 }
 
