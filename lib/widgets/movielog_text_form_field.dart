@@ -17,6 +17,7 @@ class MovieLogTextFormField extends StatelessWidget {
     this.onFieldSubmitted,
     this.autovalidateMode,
     this.hasError = false,
+    this.errorText,
   });
 
   final TextEditingController controller;
@@ -33,6 +34,8 @@ class MovieLogTextFormField extends StatelessWidget {
   final ValueChanged<String>? onFieldSubmitted;
   final AutovalidateMode? autovalidateMode;
   final bool hasError;
+  // 서버 확인 결과처럼 validator 밖에서 정해지는 에러 문구. (validator 에러가 있으면 그쪽이 우선)
+  final String? errorText;
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +50,9 @@ class MovieLogTextFormField extends StatelessWidget {
         hintText: hintText,
         prefixIcon: Icon(prefixIcon),
         suffixIcon: suffixIcon,
+        errorText: errorText,
+        // 옆에 버튼이 붙어 폭이 좁아져도 안내 문구가 잘리지 않게 두 줄까지 보여준다.
+        errorMaxLines: 2,
         filled: true,
         fillColor: hasError
             ? colorScheme.errorContainer.withValues(alpha: 0.35)

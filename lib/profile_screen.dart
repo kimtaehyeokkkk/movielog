@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:movielog/theme/app_colors.dart';
 import 'package:movielog/theme/app_text_styles.dart';
 import 'package:movielog/widgets/common_app_bar.dart';
@@ -35,12 +36,30 @@ class ProfileBody extends StatelessWidget {
             ProfileHeader(),
             SizedBox(height: 24),
             ProfileStats(),
+            SizedBox(height: 16),
+            MyRatingsEntry(),
             SizedBox(height: 24),
             FavoriteGenres(),
             SizedBox(height: 32),
           ],
         ),
       ),
+    );
+  }
+}
+
+// 마이페이지 → "내가 등록한 평점" 자식 화면 진입 행
+class MyRatingsEntry extends StatelessWidget {
+  const MyRatingsEntry({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.rate_review_outlined, color: AppColors.violet),
+      title: Text('내가 등록한 평점', style: AppTextStyles.titleMedium),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => context.push('/my/ratings'),
     );
   }
 }
