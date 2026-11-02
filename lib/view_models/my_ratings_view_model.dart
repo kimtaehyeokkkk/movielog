@@ -14,6 +14,9 @@ class MyRatingsViewModel extends ChangeNotifier {
   MyRatingsViewModel(this._service, this._movieService, int memberId)
       : _memberId = memberId;
 
+  // TMDB에 한꺼번에 너무 많은 요청이 몰리지 않도록 동시에 조회할 영화 수를 제한한다.
+  static const _movieLookupBatchSize = 5;
+
   final RatingApiService _service;
   final TmdbMovieService _movieService;
   // 같은 movieId는 TMDB에 한 번만 묻는다. (404로 못 찾은 영화는 null로 저장)
@@ -39,24 +42,26 @@ class MyRatingsViewModel extends ChangeNotifier {
       final rawRatings = await _service.fetchMyRatings(_memberId);
       if (_isStale(version)) return;
 
+      // 캐시에 없는 movieId만 중복 없이 모아 몇 개씩 동시에 조회한다.
+      // (평점마다 차례로 기다리면 평점 수만큼 Loading이 길어진다)
+      final uncachedIds = {
+        for (final rating in rawRatings)
+          if (!_movieCache.containsKey(rating.movieId)) rating.movieId,
+      }.toList();
+      for (var i = 0; i < uncachedIds.length; i += _movieLookupBatchSize) {
+        final batch = uncachedIds.skip(i).take(_movieLookupBatchSize);
+        await Future.wait(batch.map(_lookUpMovie));
+        if (_isStale(version)) return;
+      }
+
+      // 영화 정보 조회가 실패해도 평점 목록은 지우지 않는다. (평점의 주인은 자체 백엔드)
       final entries = <RatingWithMovie>[];
       var missingMovies = 0;
-      // 영화 정보 조회가 실패해도 평점 목록은 지우지 않는다. (평점의 주인은 자체 백엔드)
       for (final rating in rawRatings) {
-        if (_isStale(version)) return;
-        if (!_movieCache.containsKey(rating.movieId)) {
-          try {
-            _movieCache[rating.movieId] =
-                await _movieService.findMovieById(rating.movieId);
-          } on DioException {
-            // 일시적인 네트워크 실패는 캐시하지 않고 다음 로딩에서 다시 묻는다.
-          }
-        }
         final movie = _movieCache[rating.movieId];
         if (movie == null) missingMovies++;
         entries.add(RatingWithMovie(rating: rating, movie: movie));
       }
-      if (_isStale(version)) return;
 
       ratings = entries;
       status = entries.isEmpty
@@ -78,6 +83,18 @@ class MyRatingsViewModel extends ChangeNotifier {
     }
 
     if (!_isStale(version)) notifyListeners();
+  }
+
+  // 영화 한 편 조회. 404는 null로 캐시하고, 그 밖의 실패(네트워크 오류·응답 변환 오류)는
+  // 이 영화만 placeholder로 두고 캐시하지 않아 다음 로딩에서 다시 묻는다.
+  Future<void> _lookUpMovie(int movieId) async {
+    try {
+      _movieCache[movieId] = await _movieService.findMovieById(movieId);
+    } on DioException {
+      // 일시적인 네트워크 실패
+    } catch (error) {
+      if (kDebugMode) debugPrint('[MyRatings] 영화 $movieId 변환 실패: $error');
+    }
   }
 
   // kDebugMode 전용: 다른 회원을 조회해 Empty(회원 3)·Error 404(없는 회원) 응답을 재현한다.

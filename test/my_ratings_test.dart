@@ -57,21 +57,39 @@ class _FakeRatingApiService extends RatingApiService {
   }
 }
 
-// movieId별로 영화·null(404)·네트워크 실패를 돌려주는 TMDB Service
+// movieId별로 영화·null(404)·네트워크 실패·응답 변환 실패를 돌려주는 TMDB Service.
+// 동시에 진행 중인 조회 수의 최댓값도 기록한다.
 class _FakeTmdbMovieService extends TmdbMovieService {
-  _FakeTmdbMovieService({this.notFound = const {}, this.failing = const {}})
-      : super(Dio());
+  _FakeTmdbMovieService({
+    this.notFound = const {},
+    this.failing = const {},
+    this.malformed = const {},
+  }) : super(Dio());
 
   final Set<int> notFound;
   final Set<int> failing;
+  final Set<int> malformed;
   final calls = <int>[];
+  int _inFlight = 0;
+  int maxInFlight = 0;
 
   @override
   Future<TmdbMovieDto?> findMovieById(int movieId) async {
     calls.add(movieId);
-    if (failing.contains(movieId)) throw _dioError(null);
-    if (notFound.contains(movieId)) return null;
-    return _movie(movieId);
+    _inFlight++;
+    if (_inFlight > maxInFlight) maxInFlight = _inFlight;
+    try {
+      await Future<void>.delayed(Duration.zero);
+      if (failing.contains(movieId)) throw _dioError(null);
+      if (notFound.contains(movieId)) return null;
+      // id가 빠진 응답 → fromJson에서 TypeError
+      if (malformed.contains(movieId)) {
+        return TmdbMovieDto.fromJson({'title': '깨진 응답'});
+      }
+      return _movie(movieId);
+    } finally {
+      _inFlight--;
+    }
   }
 }
 
@@ -221,6 +239,39 @@ void main() {
       // 404(null)는 캐시하고, 일시적인 네트워크 실패는 다음 로딩에서 다시 묻는다.
       await viewModel.load();
       expect(movieService.calls, [13, 680, 550, 680]);
+    });
+
+    test('영화 응답 변환에 실패해도 전체가 Error가 되지 않고 그 영화만 null로 둔다', () async {
+      final viewModel = MyRatingsViewModel(
+        _FakeRatingApiService([_rating(1, 13), _rating(2, 550)]),
+        _FakeTmdbMovieService(malformed: {13}),
+        sampleMemberId,
+      );
+
+      await viewModel.load();
+
+      expect(viewModel.status, MyRatingsLoadStatus.success);
+      expect(viewModel.ratings[0].movie, isNull);
+      expect(viewModel.ratings[1].movie?.title, '영화 550');
+      expect(viewModel.message, contains('일부 영화 정보를 가져오지 못해'));
+    });
+
+    test('영화 정보는 차례로가 아니라 최대 5개씩 동시에 조회한다', () async {
+      final movieService = _FakeTmdbMovieService();
+      final viewModel = MyRatingsViewModel(
+        _FakeRatingApiService([
+          for (var id = 1; id <= 7; id++) _rating(id, 100 + id),
+        ]),
+        movieService,
+        sampleMemberId,
+      );
+
+      await viewModel.load();
+
+      expect(movieService.calls, hasLength(7));
+      expect(movieService.maxInFlight, 5);
+      expect(viewModel.ratings.map((e) => e.movie?.id),
+          [for (var id = 1; id <= 7; id++) 100 + id]);
     });
   });
 }
