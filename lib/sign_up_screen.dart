@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:movielog/data/models/create_member_request.dart';
+import 'package:movielog/view_models/learning_member_session.dart';
 import 'package:movielog/view_models/sign_up_view_model.dart';
+import 'package:movielog/view_models/submit_status.dart';
 import 'package:movielog/widgets/common_app_bar.dart';
 import 'package:movielog/widgets/movielog_button.dart';
 import 'package:movielog/widgets/movielog_text_form_field.dart';
@@ -34,6 +37,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   static final _emailRegex =
       RegExp(r'^[\w.+-]+@[\w-]+(\.[\w-]+)+$');
+  static final _passwordRule =
+      RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$');
 
   @override
   void initState() {
@@ -121,6 +126,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
     if (password.length < 8) {
       return '비밀번호는 8자 이상 입력해주세요.';
     }
+    // 서버(CreateMemberDto)와 같은 규칙. 빠른 안내용이며 서버 검증(400)을 대체하지 않는다.
+    if (!_passwordRule.hasMatch(password)) {
+      return '대문자·소문자·숫자·특수문자(!@#\$%^&*)를 모두 포함해주세요.';
+    }
     return null;
   }
 
@@ -165,7 +174,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     setState(() {
       _nicknameTouched = true;
       _emailTouched = true;
@@ -177,13 +186,34 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
     FocusScope.of(context).unfocus();
 
-    // 회원가입 POST는 v6부터라 이번 주차에는 요청을 보내지 않고 홈으로 이동만 한다.
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('회원가입이 완료되었습니다.'),
+    final viewModel = context.read<SignUpViewModel>();
+    await viewModel.submit(
+      CreateMemberRequest(
+        email: _emailController.text,
+        password: _passwordController.text,
+        nickname: _nicknameController.text,
       ),
     );
-    context.go('/home');
+    if (!mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final memberId = viewModel.createdMemberId;
+    if (viewModel.submitStatus == SubmitStatus.success && memberId != null) {
+      // 가입 결과의 memberId를 학습용 현재 회원으로 보관해 이후 평점 요청에 쓴다.
+      context.read<LearningMemberSession>().setMemberId(memberId);
+      messenger.showSnackBar(
+        SnackBar(content: Text('회원가입이 완료되었습니다. (memberId $memberId)')),
+      );
+      context.go('/movies');
+      return;
+    }
+
+    final message = viewModel.snackbarMessage;
+    if (message != null) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   @override
@@ -200,7 +230,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
         _hasError(_emailTouched, _validateEmail, _emailController.text) ||
             viewModel.emailErrorText != null;
     final passwordHasError =
-        _hasError(_passwordTouched, _validatePassword, _passwordController.text);
+        _hasError(_passwordTouched, _validatePassword, _passwordController.text) ||
+            viewModel.passwordErrorText != null;
+    final isSubmitting = viewModel.isSubmitting;
 
     Widget availableText(String text) {
       return Padding(
@@ -212,7 +244,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
       );
     }
 
-    return Scaffold(
+    // 가입 요청 중에는 뒤로가기로 화면을 벗어날 수 없다. 끝나면(성공·실패) 다시 나갈 수 있다.
+    return PopScope(
+      canPop: !isSubmitting,
+      child: Scaffold(
       appBar: const CommonAppBar(title: '회원가입'),
       body: SafeArea(
         child: LayoutBuilder(
@@ -341,6 +376,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           prefixIcon: Icons.lock_outline,
                           obscureText: _obscurePassword,
                           hasError: passwordHasError,
+                          // 로컬 validator를 통과해도 서버가 거부한 비밀번호(400)면 계속 에러로 보인다.
+                          errorText: viewModel.passwordErrorText,
                           suffixIcon: _buildPasswordVisibilityButton(),
                           textInputAction: TextInputAction.done,
                           validator: (value) => _passwordTouched
@@ -349,7 +386,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           autovalidateMode: _passwordTouched
                               ? AutovalidateMode.always
                               : AutovalidateMode.disabled,
-                          onChanged: (_) => setState(() {}),
+                          onChanged: (_) {
+                            setState(() {});
+                            viewModel.onPasswordChanged();
+                          },
                           onFieldSubmitted: (_) {
                             FocusScope.of(context).unfocus();
                           },
@@ -368,6 +408,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         MovieLogButton(
                           label: '가입하기',
                           width: double.infinity,
+                          isLoading: isSubmitting,
                           onPressed: _canSubmit(viewModel) ? _submit : null,
                         ),
                       ],
@@ -378,6 +419,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             );
           },
         ),
+      ),
       ),
     );
   }
