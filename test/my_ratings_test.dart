@@ -2,7 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:movielog/data/models/rating_dto.dart';
 import 'package:movielog/data/models/tmdb_movie_dto.dart';
-import 'package:movielog/data/services/member_check_service.dart';
+import 'package:movielog/data/services/sign_up_service.dart';
 import 'package:movielog/data/services/rating_api_service.dart';
 import 'package:movielog/data/services/tmdb_movie_service.dart';
 import 'package:movielog/view_models/my_ratings_view_model.dart';
@@ -123,10 +123,10 @@ Dio _dio({Object? data, int statusCode = 200, List<RequestOptions>? captured}) {
 
 void main() {
   group('Service · DTO', () {
-    test('중복 확인은 한글·@를 인코딩해 /v5 path로 요청한다', () async {
+    test('중복 확인은 한글·@를 인코딩해 /v6 path로 요청한다', () async {
       final captured = <RequestOptions>[];
       final service =
-          MemberCheckService(_dio(data: {'available': false}, captured: captured));
+          SignUpService(_dio(data: {'available': false}, captured: captured));
 
       final nickname = await service.checkNickname(' 영화광 ');
       await service.checkEmail('movie@umc.com');
@@ -134,9 +134,9 @@ void main() {
       expect(nickname, isFalse);
       expect(
         captured[0].uri.path,
-        '/v5/members/nickname/%EC%98%81%ED%99%94%EA%B4%91',
+        '/v6/members/nickname/%EC%98%81%ED%99%94%EA%B4%91',
       );
-      expect(captured[1].uri.path, '/v5/members/email/movie%40umc.com');
+      expect(captured[1].uri.path, '/v6/members/email/movie%40umc.com');
     });
 
     test('평점 배열을 그대로 RatingDto 목록으로 바꾸고 comment null을 허용한다', () async {
@@ -182,7 +182,7 @@ void main() {
       final viewModel = MyRatingsViewModel(
         _FakeRatingApiService([_rating(1, 550), _rating(2, 550), _rating(3, 13)]),
         movieService,
-        sampleMemberId,
+        1,
       );
 
       await viewModel.load();
@@ -225,7 +225,7 @@ void main() {
       final viewModel = MyRatingsViewModel(
         _FakeRatingApiService([_rating(1, 13), _rating(2, 680), _rating(3, 550)]),
         movieService,
-        sampleMemberId,
+        1,
       );
 
       await viewModel.load();
@@ -245,7 +245,7 @@ void main() {
       final viewModel = MyRatingsViewModel(
         _FakeRatingApiService([_rating(1, 13), _rating(2, 550)]),
         _FakeTmdbMovieService(malformed: {13}),
-        sampleMemberId,
+        1,
       );
 
       await viewModel.load();
@@ -263,7 +263,7 @@ void main() {
           for (var id = 1; id <= 7; id++) _rating(id, 100 + id),
         ]),
         movieService,
-        sampleMemberId,
+        1,
       );
 
       await viewModel.load();
