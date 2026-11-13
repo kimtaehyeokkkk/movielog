@@ -1,24 +1,16 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:go_router/go_router.dart';
 import 'package:movielog/data/models/tmdb_movie_dto.dart';
-import 'package:movielog/models/movie_rating.dart';
+import 'package:movielog/view_models/movie_detail_view_model.dart';
+import 'package:movielog/view_models/submit_status.dart';
 import 'package:movielog/widgets/common_app_bar.dart';
 import 'package:movielog/widgets/rating_dialog.dart';
 import 'package:movielog/widgets/tmdb_poster_image.dart';
+import 'package:provider/provider.dart';
 
 class MovieDetailScreen extends StatefulWidget {
-  const MovieDetailScreen({
-    super.key,
-    required this.movieId,
-    required this.movie,
-  });
-
-  // URL의 :movieId (TMDB id)
-  final int? movieId;
-  // 목록에서 extra로 넘겨받은 영화. 앱 재시작 등으로 extra가 사라지면 null.
-  final TmdbMovieDto? movie;
+  const MovieDetailScreen({super.key});
 
   @override
   State<MovieDetailScreen> createState() => _MovieDetailScreenState();
@@ -26,7 +18,6 @@ class MovieDetailScreen extends StatefulWidget {
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
   bool _isFavorite = false;
-  double? _myRating;
 
   void _goBack() {
     if (context.canPop()) {
@@ -51,31 +42,31 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       );
   }
 
-  Future<void> _openRatingDialog(TmdbMovieDto movie) async {
-    final rating = await showDialog<MovieRating>(
+  Future<void> _openRatingDialog() async {
+    final viewModel = context.read<MovieDetailViewModel>();
+
+    final saved = await showDialog<bool>(
       context: context,
-      builder: (context) => RatingDialog(
-        movieId: movie.id,
-        initialRating: _myRating ?? 0,
+      barrierDismissible: false, // 저장 중 바깥 탭으로 닫히는 것도 막는다.
+      builder: (_) => RatingDialog(
+        onSubmit: (score, comment) async {
+          await viewModel.createRating(score: score, comment: comment);
+          if (viewModel.submitStatus != SubmitStatus.success) {
+            // Dialog가 닫히지 않고 이 문구를 보여준다. (입력값 유지)
+            throw SubmitFailure(viewModel.submitMessage ?? '저장에 실패했습니다.');
+          }
+        },
       ),
     );
 
-    if (rating == null || !mounted) return;
-
-    // TODO(평점 API): rating.movieId를 CreateRatingRequest.movieId로 전송한다.
-    if (kDebugMode) {
-      debugPrint('[Rating] movieId=${rating.movieId}, score=${rating.score}');
-    }
-
-    setState(() {
-      _myRating = rating.score;
-    });
+    // 저장 요청과 Snackbar는 다른 비동기 경계라 await 뒤에 화면이 남아 있는지 다시 확인한다.
+    if (!mounted || saved != true) return;
 
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          content: Text('${rating.score.toStringAsFixed(1)}점을 남겼습니다.'),
+        const SnackBar(
+          content: Text('평점을 등록했습니다. 마이페이지의 "내가 등록한 평점"에서 확인할 수 있습니다.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -90,18 +81,12 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final movie = widget.movie;
-
-    if (movie == null || movie.id != widget.movieId) {
-      return Scaffold(
-        appBar: CommonAppBar(title: '영화 상세', onBack: _goBack),
-        body: const Center(child: Text('영화를 찾을 수 없습니다.')),
-      );
-    }
-
+    final viewModel = context.watch<MovieDetailViewModel>();
+    final movie = viewModel.movie;
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
     final year = _releaseYear(movie);
+    final savedScore = viewModel.savedScore;
 
     return Scaffold(
       appBar: CommonAppBar(
@@ -150,10 +135,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       ),
                     ],
                   ),
-                  if (_myRating != null) ...[
+                  if (savedScore != null) ...[
                     const SizedBox(height: 4),
                     Text(
-                      '내 평점 ${_myRating!.toStringAsFixed(1)}점',
+                      '내 평점 $savedScore점을 등록했어요',
                       style: textTheme.bodySmall?.copyWith(
                         color: colorScheme.primary,
                       ),
@@ -185,24 +170,48 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _toggleFavorite,
-                  icon: Icon(
-                    _isFavorite ? Icons.bookmark : Icons.bookmark_border,
+              // 학습용 회원가입 전에는 평점을 남길 memberId가 없어 버튼을 끄고 안내한다.
+              if (!viewModel.canRate)
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '학습용 회원가입을 해야 평점을 남길 수 있어요.',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => context.go('/register'),
+                      child: const Text('회원가입'),
+                    ),
+                  ],
+                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _toggleFavorite,
+                      icon: Icon(
+                        _isFavorite ? Icons.bookmark : Icons.bookmark_border,
+                      ),
+                      label: const Text('즐겨찾기'),
+                    ),
                   ),
-                  label: const Text('즐겨찾기'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: () => _openRatingDialog(movie),
-                  icon: const Icon(Icons.rate_review),
-                  label: const Text('평점 남기기'),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: viewModel.canRate ? _openRatingDialog : null,
+                      icon: const Icon(Icons.rate_review),
+                      label: const Text('평점 남기기'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

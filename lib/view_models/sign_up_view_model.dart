@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:movielog/data/services/member_check_service.dart';
+import 'package:movielog/data/models/create_member_request.dart';
+import 'package:movielog/data/services/sign_up_service.dart';
+import 'package:movielog/view_models/submit_status.dart';
 
 enum CheckStatus { idle, checking, available, duplicated, error }
 
@@ -25,11 +27,22 @@ class _FieldCheck {
 class SignUpViewModel extends ChangeNotifier {
   SignUpViewModel(this._service);
 
-  final MemberCheckService _service;
+  final SignUpService _service;
 
   final _nickname = _FieldCheck(duplicatedMessage: '이미 사용 중인 닉네임입니다.');
   final _email = _FieldCheck(duplicatedMessage: '이미 사용 중인 이메일입니다.');
   bool _disposed = false;
+
+  // 회원가입 POST 상태
+  SubmitStatus submitStatus = SubmitStatus.idle;
+  // 가입 성공 응답에서 읽은 실제 memberId
+  int? createdMemberId;
+  // 비밀번호 입력칸에 붙일 서버 오류 (필드 단위)
+  String? passwordErrorText;
+  // 어느 입력칸에도 붙지 않는 오류 (화면 단위, Snackbar로 한 번 보여준다)
+  String? snackbarMessage;
+
+  bool get isSubmitting => submitStatus == SubmitStatus.submitting;
 
   CheckStatus get nicknameCheckStatus => _nickname.status;
   String? get nicknameErrorText => _nickname.errorText;
@@ -46,6 +59,68 @@ class SignUpViewModel extends ChangeNotifier {
       _check(_nickname, value, _service.checkNickname);
   Future<void> checkEmail(String value) =>
       _check(_email, value, _service.checkEmail);
+
+  void onPasswordChanged() {
+    if (passwordErrorText == null) return;
+    passwordErrorText = null;
+    _notify();
+  }
+
+  Future<void> submit(CreateMemberRequest request) async {
+    if (isSubmitting) return; // 제출 중 중복 탭 방지
+    submitStatus = SubmitStatus.submitting;
+    createdMemberId = null;
+    passwordErrorText = null;
+    snackbarMessage = null;
+    _notify();
+
+    try {
+      final response = await _service.signUp(request);
+      if (_disposed) return;
+      final id = response.result?.memberId;
+      if (id == null) throw StateError('회원가입 결과에 memberId가 없습니다.');
+      createdMemberId = id;
+      submitStatus = SubmitStatus.success;
+    } on DioException catch (error) {
+      if (_disposed) return;
+      submitStatus = SubmitStatus.error;
+      final message = writeSignUpErrorMessage(error);
+      final statusCode = error.response?.statusCode;
+      if (statusCode == 400 && message.contains('비밀번호')) {
+        passwordErrorText = message;
+      } else {
+        snackbarMessage = message;
+        // 중복 확인 직후 다른 사람이 같은 값으로 가입할 수 있어 POST의 409가 최종 중복 결과다.
+        if (statusCode == 409) _markDuplicatedFromServer(message, request);
+      }
+    } catch (error) {
+      // memberId가 빠진 응답 등 계약과 다른 성공 응답
+      if (_disposed) return;
+      if (kDebugMode) debugPrint('[SignUp] 가입 응답 확인 실패: $error');
+      submitStatus = SubmitStatus.error;
+      snackbarMessage = '가입 결과를 확인하지 못했습니다. 새 요청 전에 서버 상태를 확인해 주세요.';
+    }
+    _notify();
+  }
+
+  // 409 message로 어느 칸이 중복인지 알 수 있으면 거부된 값을 "중복이었던 값"으로 기억한다.
+  // 제출 중에 입력을 바꿨을 수 있으므로, 지금 입력이 거부된 값과 같을 때만 그 칸을 중복 상태로
+  // 바꾸고 진행 중인 확인을 무효화한다. 다르면 현재 칸의 상태·오류를 그대로 둔다.
+  void _markDuplicatedFromServer(String message, CreateMemberRequest request) {
+    final field = message.contains('이메일')
+        ? _email
+        : message.contains('닉네임')
+            ? _nickname
+            : null;
+    if (field == null) return;
+    final value = field == _email ? request.email.trim() : request.nickname.trim();
+    field.duplicatedValue = value;
+    if (field.currentValue != value) return;
+    field
+      ..requestVersion += 1
+      ..status = CheckStatus.duplicated
+      ..errorText = field.duplicatedMessage;
+  }
 
   void _onChanged(_FieldCheck field, String value) {
     final trimmed = value.trim();
