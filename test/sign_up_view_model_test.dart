@@ -221,6 +221,43 @@ void main() {
       expect(viewModel.canCheckEmail, isFalse);
     });
 
+    test('409 응답 전에 입력을 바꿨으면 현재 칸 상태는 그대로 두고, 거부된 값만 기억한다', () async {
+      final service = _FakeMemberCheckService()
+        ..signUpResult =
+            _signUpError(409, 'COMMON409', '이미 사용 중인 이메일입니다.');
+      final viewModel = SignUpViewModel(service);
+      viewModel.onEmailChanged('other@umc.com');
+
+      await viewModel.submit(_request); // 거부된 값: taehyeok@umc.com
+
+      expect(viewModel.emailCheckStatus, CheckStatus.idle);
+      expect(viewModel.emailErrorText, isNull);
+      expect(viewModel.canCheckEmail, isTrue);
+
+      viewModel.onEmailChanged(_request.email);
+      expect(viewModel.emailCheckStatus, CheckStatus.duplicated);
+    });
+
+    test('공통 형식이 아닌 오류 본문이면 기본 실패 문구를 보여준다', () async {
+      final options = RequestOptions(path: '/v6/members');
+      final service = _FakeMemberCheckService()
+        ..signUpResult = DioException(
+          requestOptions: options,
+          response: Response(
+            requestOptions: options,
+            statusCode: 502,
+            data: '<html>Bad Gateway</html>',
+          ),
+          type: DioExceptionType.badResponse,
+        );
+      final viewModel = SignUpViewModel(service);
+
+      await viewModel.submit(_request);
+
+      expect(viewModel.submitStatus, SubmitStatus.error);
+      expect(viewModel.snackbarMessage, '회원가입에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+    });
+
     test('memberId가 없는 성공 응답은 가입 완료로 표시하지 않는다', () async {
       final service = _FakeMemberCheckService()
         ..signUpResult = const CommonResponse<SignUpResult>(

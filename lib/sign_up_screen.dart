@@ -83,11 +83,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   // 형식 검증과 함께, 닉네임·이메일 모두 서버에서 "사용 가능"을 받아야 가입할 수 있다.
   bool _canSubmit(SignUpViewModel viewModel) {
-    final password = _passwordController.text;
-
     return _validateNickname(_nicknameController.text) == null &&
         _validateEmail(_emailController.text) == null &&
-        password.length >= 8 &&
+        _validatePassword(_passwordController.text) == null &&
         _agreedToTerms &&
         viewModel.nicknameCheckStatus == CheckStatus.available &&
         viewModel.emailCheckStatus == CheckStatus.available;

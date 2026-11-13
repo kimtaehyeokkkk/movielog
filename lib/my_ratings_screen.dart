@@ -45,8 +45,10 @@ class MyRatingsScreen extends StatelessWidget {
               ],
             ),
             // 하단 탭 위가 아니라 root Navigator에 올라오는 화면이라 bottomNavigationBar가 없다.
-            // 다중 선택 중에만 하단에 삭제 버튼을 둔다.
-            bottomNavigationBar: viewModel.isSelecting
+            // 다중 선택 중이면서 목록 조회가 성공한 상태에서만 하단에 삭제 버튼을 둔다.
+            // (조회 오류 화면에서는 화면에 없는 평점을 지우지 않도록 숨긴다)
+            bottomNavigationBar: viewModel.isSelecting &&
+                    viewModel.status == MyRatingsLoadStatus.success
                 ? _DeleteSelectedBar(viewModel: viewModel)
                 : null,
             body: LoadingOverlay(

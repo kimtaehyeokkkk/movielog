@@ -7,6 +7,7 @@ import 'package:movielog/movie_detail_screen.dart';
 import 'package:movielog/view_models/learning_member_session.dart';
 import 'package:movielog/view_models/movie_detail_view_model.dart';
 import 'package:movielog/widgets/common_app_bar.dart';
+import 'package:movielog/widgets/movielog_button.dart';
 import 'package:provider/provider.dart';
 
 // 영화 상세의 시작점. 목록에서 넘겨받은 DTO(extra)가 있으면 그대로 쓰고,
@@ -26,8 +27,8 @@ class MovieDetailLoader extends StatefulWidget {
 }
 
 class _MovieDetailLoaderState extends State<MovieDetailLoader> {
-  // build마다 새 Future를 만들지 않도록 initState에서 한 번만 만든다.
-  late final Future<TmdbMovieDto> _movieFuture;
+  // build마다 새 Future를 만들지 않도록 initState와 재시도 때만 만든다.
+  late Future<TmdbMovieDto> _movieFuture;
 
   @override
   void initState() {
@@ -35,7 +36,15 @@ class _MovieDetailLoaderState extends State<MovieDetailLoader> {
     final initialMovie = widget.initialMovie;
     _movieFuture = initialMovie != null
         ? Future.value(initialMovie)
-        : context.read<TmdbMovieService>().fetchMovieDetail(widget.movieId);
+        : _fetchMovie();
+  }
+
+  Future<TmdbMovieDto> _fetchMovie() =>
+      context.read<TmdbMovieService>().fetchMovieDetail(widget.movieId);
+
+  // 상세 조회가 실패했을 때 같은 영화를 다시 요청한다.
+  void _retry() {
+    setState(() => _movieFuture = _fetchMovie());
   }
 
   void _goBack() =>
@@ -56,7 +65,16 @@ class _MovieDetailLoaderState extends State<MovieDetailLoader> {
         if (snapshot.hasError || movie == null) {
           return Scaffold(
             appBar: CommonAppBar(title: '영화 상세', onBack: _goBack),
-            body: const Center(child: Text('영화를 불러오지 못했습니다.')),
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('영화를 불러오지 못했습니다.'),
+                  const SizedBox(height: 16),
+                  MovieLogButton(label: '다시 시도', width: 120, onPressed: _retry),
+                ],
+              ),
+            ),
           );
         }
         return ChangeNotifierProvider<MovieDetailViewModel>(

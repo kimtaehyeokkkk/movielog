@@ -14,6 +14,16 @@ class CommonResponse<T> {
   // API마다 담기는 값이 달라 제네릭. 값이 없거나 실패 응답이면 null
   final T? result;
 
+  // 오류 본문처럼 공통 형식인지 알 수 없는 값을 예외 없이 읽는다. 공통 형식이 아니면 null.
+  static CommonResponse<Object?>? tryParse(Object? data) {
+    if (data is! Map<String, dynamic>) return null;
+    try {
+      return CommonResponse<Object?>.fromJson(data, (value) => value);
+    } catch (_) {
+      return null;
+    }
+  }
+
   factory CommonResponse.fromJson(
     Map<String, dynamic> json,
     T Function(Object? value) parseResult,

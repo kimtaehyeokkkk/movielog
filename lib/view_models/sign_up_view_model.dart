@@ -103,8 +103,9 @@ class SignUpViewModel extends ChangeNotifier {
     _notify();
   }
 
-  // 409 message로 어느 칸이 중복인지 알 수 있으면 그 칸을 중복 상태로 되돌려,
-  // 값을 바꾸기 전까지 다시 확인·가입할 수 없게 한다.
+  // 409 message로 어느 칸이 중복인지 알 수 있으면 거부된 값을 "중복이었던 값"으로 기억한다.
+  // 제출 중에 입력을 바꿨을 수 있으므로, 지금 입력이 거부된 값과 같을 때만 그 칸을 중복 상태로
+  // 바꾸고 진행 중인 확인을 무효화한다. 다르면 현재 칸의 상태·오류를 그대로 둔다.
   void _markDuplicatedFromServer(String message, CreateMemberRequest request) {
     final field = message.contains('이메일')
         ? _email
@@ -113,8 +114,10 @@ class SignUpViewModel extends ChangeNotifier {
             : null;
     if (field == null) return;
     final value = field == _email ? request.email.trim() : request.nickname.trim();
+    field.duplicatedValue = value;
+    if (field.currentValue != value) return;
     field
-      ..duplicatedValue = value
+      ..requestVersion += 1
       ..status = CheckStatus.duplicated
       ..errorText = field.duplicatedMessage;
   }

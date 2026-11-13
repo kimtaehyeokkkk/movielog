@@ -69,7 +69,7 @@ String writeMyRatingsErrorMessage(DioException error) {
 // 쓰기 실패 문구. 같은 COMMON404라도 등록은 "유저", 수정·삭제는 "평점"을 가리켜서
 // code로 문구를 새로 만들지 않고 서버 message를 그대로 쓴다.
 String writeErrorMessage(DioException error) {
-  final common = _commonResponseOf(error);
+  final common = CommonResponse.tryParse(error.response?.data);
   if (common != null) return common.message;
   return switch (error.type) {
     DioExceptionType.connectionError ||
@@ -82,17 +82,12 @@ String writeErrorMessage(DioException error) {
 
 // code는 문구가 아니라 다음 UI 행동에만 쓴다. 403·404는 화면의 목록이 서버와
 // 어긋났다는 뜻이라 다시 조회하고, 400·409는 값만 고쳐 다시 시도하면 되므로 조회하지 않는다.
+// 본문을 파싱하지 못해도 HTTP 상태 코드가 403·404면 같은 의미로 본다.
 bool shouldRefreshAfterRatingError(DioException error) {
-  final code = _commonResponseOf(error)?.code;
-  return code == 'COMMON403' || code == 'COMMON404';
-}
-
-CommonResponse<Object?>? _commonResponseOf(DioException error) {
-  final data = error.response?.data;
-  if (data is! Map<String, dynamic>) return null;
-  try {
-    return CommonResponse<Object?>.fromJson(data, (value) => value);
-  } catch (_) {
-    return null; // 공통 형식이 아닌 오류 본문
-  }
+  final code = CommonResponse.tryParse(error.response?.data)?.code;
+  final status = error.response?.statusCode;
+  return code == 'COMMON403' ||
+      code == 'COMMON404' ||
+      status == 403 ||
+      status == 404;
 }

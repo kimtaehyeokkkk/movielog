@@ -199,6 +199,22 @@ void main() {
       );
       expect(shouldRefreshAfterRatingError(conflict), isFalse);
     });
+
+    test('공통 형식이 아닌 403·404 본문도 status로 재조회 대상이 된다', () {
+      for (final status in [403, 404]) {
+        final options = RequestOptions(path: '/v6');
+        final error = DioException(
+          requestOptions: options,
+          response: Response(
+            requestOptions: options,
+            statusCode: status,
+            data: '<html>Not Found</html>',
+          ),
+          type: DioExceptionType.badResponse,
+        );
+        expect(shouldRefreshAfterRatingError(error), isTrue);
+      }
+    });
   });
 
   group('MovieDetailViewModel 등록', () {

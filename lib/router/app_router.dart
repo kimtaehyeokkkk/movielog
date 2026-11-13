@@ -115,8 +115,25 @@ class AppRouter {
         builder: (context, state) {
           final id = int.tryParse(state.pathParameters['movieId'] ?? '');
           if (id == null || id < 1) {
-            return const Scaffold(
-              body: Center(child: Text('영화 ID가 올바르지 않습니다.')),
+            return Scaffold(
+              appBar: CommonAppBar(
+                title: '영화 상세',
+                onBack: () =>
+                    context.canPop() ? context.pop() : context.go('/movies'),
+              ),
+              body: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('영화 ID가 올바르지 않습니다.'),
+                    const SizedBox(height: 16),
+                    MovieLogButton(
+                      label: '영화 목록으로',
+                      onPressed: () => context.go('/movies'),
+                    ),
+                  ],
+                ),
+              ),
             );
           }
           final extra = state.extra;
