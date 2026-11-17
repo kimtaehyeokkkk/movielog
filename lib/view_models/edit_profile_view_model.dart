@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:movielog/core/network/api_error.dart';
 import 'package:movielog/data/services/member_api_service.dart';
 import 'package:movielog/view_models/auth_view_model.dart';
@@ -23,9 +23,12 @@ class EditProfileViewModel extends ChangeNotifier {
   bool get isSaving => status == EditProfileStatus.saving;
 
   // 서버에 보내기 전에 확인할 수 있는 규칙은 먼저 검사해 불필요한 통신을 줄인다.
+  // 글자 수는 TextField의 maxLength·글자 수 표시와 같은 기준(사용자에게 보이는 글자,
+  // grapheme cluster)으로 센다. String.length는 이모지를 2글자 이상으로 센다.
+  // 서버가 다른 기준으로 거절하면 COMMON400 message를 입력칸 아래에 그대로 보여준다.
   String? validateNickname(String value) {
-    final nickname = value.trim();
-    if (nickname.length < 2 || nickname.length > 12) {
+    final length = value.trim().characters.length;
+    if (length < 2 || length > 12) {
       return '닉네임은 2~12자로 입력해 주세요.';
     }
     return null;

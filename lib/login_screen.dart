@@ -27,6 +27,9 @@ class _LoginScreenState extends State<LoginScreen> {
   late final SavedEmailStorage _savedEmail;
   // Challenge: 이메일 저장 체크박스
   bool _rememberEmail = false;
+  // 저장된 이메일을 읽는 동안 사용자가 이메일을 입력하거나 체크를 바꾸면
+  // 늦게 끝난 읽기 결과로 덮어쓰지 않는다.
+  bool _savedEmailRestoreCancelled = false;
 
   @override
   void initState() {
@@ -42,7 +45,8 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _loadSavedEmail() async {
     try {
       final email = await _savedEmail.read();
-      if (!mounted || email == null || email.isEmpty) return;
+      if (!mounted || _savedEmailRestoreCancelled) return;
+      if (email == null || email.isEmpty) return;
       setState(() {
         _email.text = email;
         _rememberEmail = true;
@@ -144,6 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   enabled: enabled,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
+                  onChanged: (_) => _savedEmailRestoreCancelled = true,
                   decoration: _decoration('이메일', Icons.email_outlined),
                   validator: (value) => (value?.trim().isEmpty ?? true)
                       ? '이메일을 입력해 주세요.'
@@ -164,7 +169,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 CheckboxListTile(
                   value: _rememberEmail,
                   onChanged: enabled
-                      ? (value) => setState(() => _rememberEmail = value ?? false)
+                      ? (value) => setState(() {
+                            _savedEmailRestoreCancelled = true;
+                            _rememberEmail = value ?? false;
+                          })
                       : null,
                   title: const Text('이메일 저장'),
                   controlAffinity: ListTileControlAffinity.leading,
@@ -178,6 +186,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Text(
                       auth.message!,
                       style: TextStyle(color: colorScheme.error),
+                    ),
+                  ),
+                // 로그아웃·만료 정리에서 토큰 삭제가 실패했으면 다시 지울 수 있게 한다.
+                if (auth.tokenCleanupFailed)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      onPressed: auth.storageCleanupInProgress
+                          ? null
+                          : auth.retryTokenCleanup,
+                      child: const Text('저장된 인증 정보 다시 지우기'),
                     ),
                   ),
                 const SizedBox(height: 32),

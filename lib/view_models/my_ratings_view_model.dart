@@ -185,6 +185,10 @@ class MyRatingsViewModel extends ChangeNotifier {
           } else {
             failed++;
           }
+        } catch (error) {
+          // 계약과 다른 응답(StateError 등)도 그 항목만 실패로 세고 다음 항목을 이어서 지운다.
+          if (kDebugMode) debugPrint('[MyRatings] 평점 $ratingId 삭제 확인 실패: $error');
+          failed++;
         }
       }
     } finally {

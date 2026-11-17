@@ -28,6 +28,9 @@ class AuthViewModel extends ChangeNotifier {
   // 만료로 로그아웃됐을 때만 켜진다. 로그인 화면이 Snackbar로 한 번 안내하고 끈다.
   bool sessionExpired = false;
   bool storageCleanupInProgress = false;
+  // 로그아웃·만료 정리에서 저장된 토큰 삭제가 실패했을 때 켜진다. 삭제에 성공할 때까지
+  // 로그인 화면에서 다시 지우기를 안내한다. (토큰이 남아 있으면 재시작 시 다시 로그인될 수 있음)
+  bool tokenCleanupFailed = false;
 
   // 로그인·로그아웃·만료·복원마다 올라간다. 요청을 보낼 때의 값과 응답이 왔을 때의 값이
   // 다르면 이전 세션의 늦은 응답이므로 버린다.
@@ -128,6 +131,8 @@ class AuthViewModel extends ChangeNotifier {
         if (identical(_tokenWrite, writing)) _tokenWrite = null;
       }
       if (!_isCurrent(version)) return;
+      // 새 토큰으로 덮어썼으니 이전 토큰 정리 실패는 더 이상 남아 있지 않다.
+      tokenCleanupFailed = false;
       status = AuthStatus.signedIn;
     } catch (_) {
       if (!_isCurrent(version)) return;
@@ -220,13 +225,35 @@ class AuthViewModel extends ChangeNotifier {
         // 저장이 실패했어도 삭제는 시도한다.
       }
       await _storage.deleteAccessToken();
+      tokenCleanupFailed = false;
     } catch (_) {
-      if (_isCurrent(version)) {
-        message = '저장된 인증 정보를 지우지 못했어요. 앱 재실행 전에 저장소 상태를 확인해 주세요.';
-      }
+      // 화면은 이미 로그아웃 상태(보호 화면에서 나감)지만, 정리가 끝난 것은 아니다.
+      // 삭제에 성공할 때까지 실패 상태를 유지하고 다시 지울 수 있게 한다.
+      tokenCleanupFailed = true;
+      if (_isCurrent(version)) message = _tokenCleanupFailedMessage;
     } finally {
       storageCleanupInProgress = false;
       if (_isCurrent(version)) _notify();
+    }
+  }
+
+  static const _tokenCleanupFailedMessage =
+      '저장된 인증 정보를 지우지 못했어요. 다시 지우기를 눌러 주세요.';
+
+  // 로그인 화면의 "저장된 인증 정보 다시 지우기"
+  Future<void> retryTokenCleanup() async {
+    if (_disposed || !tokenCleanupFailed || storageCleanupInProgress) return;
+    storageCleanupInProgress = true;
+    _notify();
+    try {
+      await _storage.deleteAccessToken();
+      tokenCleanupFailed = false;
+      message = null;
+    } catch (_) {
+      message = _tokenCleanupFailedMessage;
+    } finally {
+      storageCleanupInProgress = false;
+      _notify();
     }
   }
 

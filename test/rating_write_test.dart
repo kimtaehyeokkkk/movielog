@@ -31,7 +31,8 @@ class _FakeRatingApiService extends RatingApiService {
 
   int _nextId = 100;
   DioException? createError;
-  final Map<int, DioException> errorsById = {};
+  // DioException 또는 계약과 다른 응답을 흉내 낸 StateError 등
+  final Map<int, Object> errorsById = {};
   CreateRatingRequest? lastCreate;
   UpdateRatingRequest? lastUpdate;
   final deleted = <int>[];
@@ -239,6 +240,26 @@ void main() {
       expect(viewModel.isSelecting, isTrue);
       expect(viewModel.isDeletingSelected, isFalse);
       expect(viewModel.ratings.map((e) => e.rating.ratingId), [2, 3]);
+    });
+
+    test('Dio가 아닌 오류(예상 밖 응답)도 그 항목만 실패로 세고 다음 항목을 계속 지운다', () async {
+      final f = await _Fixture.create();
+      f.seed([ratingDto(1, 550), ratingDto(2, 13), ratingDto(3, 680)]);
+      f.service.errorsById[1] = StateError('예상하지 못한 삭제 응답: 204');
+      final viewModel = f.myRatings();
+      await viewModel.load();
+
+      viewModel.startSelecting();
+      viewModel.toggleSelected(1);
+      viewModel.toggleSelected(2);
+      viewModel.toggleSelected(3);
+      final failed = await viewModel.deleteSelectedRatings();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(failed, 1);
+      expect(f.service.deleted, [2, 3]);
+      expect(viewModel.selectedRatingIds, {1});
+      expect(viewModel.isDeletingSelected, isFalse);
     });
 
     test('모두 성공하면 선택 모드를 끝낸다', () async {

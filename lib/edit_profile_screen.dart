@@ -98,10 +98,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               // maybePop은 PopScope를 거치므로 시스템 뒤로가기와 같은 규칙을 따른다.
               onBack: saving ? null : () => Navigator.maybePop(context),
             ),
+            // 키보드가 올라와 높이가 줄어도 저장 버튼까지 스크롤로 닿을 수 있게 한다.
+            // 화면이 충분히 크면 minHeight로 늘려 저장 버튼을 아래쪽에 둔다.
             body: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
+              child: LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: (constraints.maxHeight - 48)
+                          .clamp(0, double.infinity),
+                    ),
+                    child: IntrinsicHeight(
+                      child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     TextFormField(
@@ -130,6 +139,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
                     ),
                     const Spacer(),
+                    const SizedBox(height: 24),
                     MovieLogButton(
                       label: '저장',
                       width: double.infinity,
@@ -137,6 +147,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       onPressed: saving ? null : _submit,
                     ),
                   ],
+                ),
+                    ),
+                  ),
                 ),
               ),
             ),

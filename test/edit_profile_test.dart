@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:movielog/edit_profile_screen.dart';
 import 'package:movielog/login_screen.dart';
 import 'package:movielog/profile_screen.dart';
 import 'package:movielog/view_models/auth_view_model.dart';
@@ -18,6 +21,18 @@ void main() {
       expect(await viewModel.save('가'), isFalse);
       expect(viewModel.nicknameError, '닉네임은 2~12자로 입력해 주세요.');
       expect(memberApi.updatedNicknames, isEmpty);
+    });
+
+    test('글자 수는 String.length가 아니라 보이는 글자 기준으로 센다 (이모지)', () async {
+      final memberApi = FakeMemberApiService();
+      final auth = await signedInAuth(memberApi: memberApi);
+      final viewModel = EditProfileViewModel(memberApi, auth);
+
+      // 👨‍👩‍👧는 String.length가 8이지만 보이는 글자는 1개다.
+      expect(viewModel.validateNickname('👨‍👩‍👧'), isNotNull);
+      expect(viewModel.validateNickname('👨‍👩‍👧😀'), isNull);
+      expect(viewModel.validateNickname('😀' * 12), isNull);
+      expect(viewModel.validateNickname('😀' * 13), isNotNull);
     });
 
     test('지금 닉네임과 같으면 요청 없이 완료', () async {
@@ -93,6 +108,33 @@ void main() {
       expect(find.text('프로필 수정'), findsOneWidget);
     });
 
+    testWidgets('프로필 수정은 높이가 줄어도(키보드) 넘치지 않고 저장 버튼까지 스크롤된다',
+        (tester) async {
+      final memberApi = FakeMemberApiService();
+      final auth = await signedInAuth(memberApi: memberApi);
+      tester.view.physicalSize = const Size(400, 260);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AuthViewModel>.value(
+          value: auth,
+          child: ChangeNotifierProvider<EditProfileViewModel>(
+            create: (_) => EditProfileViewModel(memberApi, auth),
+            child: const MaterialApp(home: EditProfileScreen()),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      await tester.scrollUntilVisible(
+        find.widgetWithText(ElevatedButton, '저장'),
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.widgetWithText(ElevatedButton, '저장'), findsOneWidget);
+    });
+
     testWidgets('마이페이지는 내 정보 실패 시 재시도 버튼을 보여준다', (tester) async {
       final memberApi = FakeMemberApiService();
       final auth = await signedInAuth(memberApi: memberApi);
@@ -134,6 +176,33 @@ void main() {
 
       expect(find.text('로그인이 만료됐어요. 다시 로그인해 주세요.'), findsOneWidget);
       expect(auth.sessionExpired, isFalse);
+    });
+
+    testWidgets('저장된 이메일 읽기가 늦게 끝나도 그 사이 입력한 이메일·체크를 덮어쓰지 않는다',
+        (tester) async {
+      final auth = AuthViewModel(
+        FakeAuthApiService(),
+        FakeMemberApiService(),
+        MemoryTokenStorage(),
+      );
+      await auth.restoreSession();
+      final savedEmail = MemorySavedEmailStorage()..pendingRead = Completer();
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AuthViewModel>.value(
+          value: auth,
+          child: MaterialApp(home: LoginScreen(savedEmailStorage: savedEmail)),
+        ),
+      );
+      await tester.enterText(find.byType(TextFormField).first, 'new@umc.com');
+      savedEmail.pendingRead!.complete('old@umc.com');
+      await tester.pump();
+
+      expect(find.text('new@umc.com'), findsOneWidget);
+      expect(find.text('old@umc.com'), findsNothing);
+      final checkbox =
+          tester.widget<CheckboxListTile>(find.byType(CheckboxListTile));
+      expect(checkbox.value, isFalse);
     });
 
     testWidgets('로그인 실패(AUTH401_1)는 Form 문구만 보여주고 만료 Snackbar는 없다',

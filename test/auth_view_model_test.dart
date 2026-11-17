@@ -207,6 +207,26 @@ void main() {
       expect(storage.token, isNull);
     });
 
+    test('토큰 삭제에 실패하면 실패 상태를 유지하고, 다시 지우기로 정리를 마친다', () async {
+      final storage = MemoryTokenStorage('token-a');
+      final auth = await signedInAuth(storage: storage);
+      storage.failDelete = true;
+
+      await auth.logout();
+
+      expect(auth.status, AuthStatus.signedOut); // 보호 화면에서는 나간다.
+      expect(auth.tokenCleanupFailed, isTrue);
+      expect(auth.message, contains('저장된 인증 정보를 지우지 못했어요'));
+      expect(storage.token, 'token-a');
+
+      storage.failDelete = false;
+      await auth.retryTokenCleanup();
+
+      expect(auth.tokenCleanupFailed, isFalse);
+      expect(auth.message, isNull);
+      expect(storage.token, isNull);
+    });
+
     test('동시에 401이 여러 번 와도 세션 정리는 한 번만 한다', () async {
       final storage = MemoryTokenStorage('token-a');
       final auth = await signedInAuth(storage: storage);

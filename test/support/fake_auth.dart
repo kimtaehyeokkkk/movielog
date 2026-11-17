@@ -129,9 +129,15 @@ class FakeMemberApiService extends MemberApiService {
 
 class MemorySavedEmailStorage extends SavedEmailStorage {
   String? email;
+  // 설정하면 읽기가 이 Completer가 끝날 때까지 늦어진다.
+  Completer<String?>? pendingRead;
 
   @override
-  Future<String?> read() async => email;
+  Future<String?> read() async {
+    final pending = pendingRead;
+    if (pending != null) return pending.future;
+    return email;
+  }
 
   @override
   Future<void> save(String value) async => email = value;
