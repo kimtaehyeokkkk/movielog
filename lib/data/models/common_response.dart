@@ -1,5 +1,5 @@
-// v6 공통 응답. 쓰기 API의 성공 응답과 모든 API의 실패 응답이 이 형식으로 감싸진다.
-// (v5부터 있던 GET 3개는 성공 시 직접 객체·배열 그대로이고, 실패만 이 형식)
+// v6·v7 공통 응답. 로그인·내 정보·쓰기 API의 성공 응답과 모든 API의 실패 응답이 이 형식이다.
+// (중복 확인 2개와 유저별 평점 조회 GET은 성공 시 직접 객체·배열 그대로이고, 실패만 이 형식)
 class CommonResponse<T> {
   const CommonResponse({
     required this.isSuccess,

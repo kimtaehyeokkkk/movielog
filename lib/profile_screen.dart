@@ -1,46 +1,109 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:movielog/data/models/member_info.dart';
 import 'package:movielog/theme/app_colors.dart';
 import 'package:movielog/theme/app_text_styles.dart';
+import 'package:movielog/view_models/auth_view_model.dart';
 import 'package:movielog/widgets/common_app_bar.dart';
+import 'package:movielog/widgets/movielog_button.dart';
 import 'package:movielog/widgets/stat_item.dart';
+import 'package:provider/provider.dart';
 
+// 마이페이지. MainScreen이 불러온 내 정보(AuthViewModel.member)를 구독해 표시한다.
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthViewModel>();
+    final member = auth.member;
+
     return Scaffold(
-      appBar: const CommonAppBar(
+      appBar: CommonAppBar(
         title: '내 프로필',
         centerTitle: false,
+        actions: [
+          if (kDebugMode)
+            PopupMenuButton<void>(
+              tooltip: '디버그',
+              icon: const Icon(Icons.bug_report_outlined),
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  onTap: auth.debugUseInvalidToken,
+                  child: const Text('무효 토큰으로 내 정보 요청'),
+                ),
+              ],
+            ),
+          // 토큰과 member를 지우면 Router가 /login으로 보낸다.
+          TextButton(
+            onPressed: auth.storageCleanupInProgress ? null : auth.logout,
+            child: const Text('로그아웃'),
+          ),
+        ],
       ),
-      body: const SafeArea(
-        child: ProfileBody(),
+      body: SafeArea(
+        // Challenge: 내 정보를 불러오는 동안 화면 전체 인디케이터, 실패하면 재시도
+        child: member != null
+            ? ProfileBody(member: member)
+            : auth.memberStatus == MemberLoadStatus.error
+                ? _MemberLoadError(
+                    onRetry: () => auth.loadMember(force: true),
+                  )
+                : const Center(child: CircularProgressIndicator()),
+      ),
+    );
+  }
+}
+
+class _MemberLoadError extends StatelessWidget {
+  const _MemberLoadError({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 48,
+            color: Theme.of(context).colorScheme.error,
+          ),
+          const SizedBox(height: 12),
+          const Text('내 정보를 불러오지 못했어요.'),
+          const SizedBox(height: 16),
+          MovieLogButton(label: '다시 시도', width: 120, onPressed: onRetry),
+        ],
       ),
     );
   }
 }
 
 class ProfileBody extends StatelessWidget {
-  const ProfileBody({super.key});
+  const ProfileBody({super.key, required this.member});
+
+  final MemberInfo member;
 
   @override
   Widget build(BuildContext context) {
-    return const SingleChildScrollView(
+    return SingleChildScrollView(
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ProfileHeader(),
-            SizedBox(height: 24),
-            ProfileStats(),
-            SizedBox(height: 16),
-            MyRatingsEntry(),
-            SizedBox(height: 24),
-            FavoriteGenres(),
-            SizedBox(height: 32),
+            ProfileHeader(member: member),
+            const SizedBox(height: 24),
+            // 아래 통계·장르는 기존 디자인 예시다. (v7 GET me 응답은 이메일·닉네임·가입일뿐)
+            const ProfileStats(),
+            const SizedBox(height: 16),
+            const MyRatingsEntry(),
+            const SizedBox(height: 24),
+            const FavoriteGenres(),
+            const SizedBox(height: 32),
           ],
         ),
       ),
@@ -65,7 +128,9 @@ class MyRatingsEntry extends StatelessWidget {
 }
 
 class ProfileHeader extends StatelessWidget {
-  const ProfileHeader({super.key});
+  const ProfileHeader({super.key, required this.member});
+
+  final MemberInfo member;
 
   @override
   Widget build(BuildContext context) {
@@ -89,12 +154,22 @@ class ProfileHeader extends StatelessWidget {
             ),
           ),
         ),
-        Text('무비러버', style: AppTextStyles.titleLarge),
+        Text(member.nickname, style: AppTextStyles.titleLarge),
+        const SizedBox(height: 4),
+        // Challenge: 닉네임 아래 가입일
+        Text(
+          formatJoinedDate(member.createdAt),
+          style: const TextStyle(
+            fontSize: 12,
+            height: 16 / 12,
+            color: AppColors.labelGray,
+          ),
+        ),
         const SizedBox(height: 8),
-        const Text(
-          '매주 주말엔 영화관으로 출근하는 프로 관람객.\n좋은 영화를 보고 기록하는 것을 좋아합니다.',
+        Text(
+          member.email,
           textAlign: TextAlign.center,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 14,
             height: 20 / 14,
             color: AppColors.labelGray,
@@ -102,7 +177,7 @@ class ProfileHeader extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         TextButton(
-          onPressed: () {},
+          onPressed: () => context.push('/my/profile/edit'),
           style: TextButton.styleFrom(
             foregroundColor: AppColors.violet,
             side: const BorderSide(color: AppColors.violet, width: 1),

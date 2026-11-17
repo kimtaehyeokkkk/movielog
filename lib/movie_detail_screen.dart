@@ -174,24 +174,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 학습용 회원가입 전에는 평점을 남길 memberId가 없어 버튼을 끄고 안내한다.
-              if (!viewModel.canRate)
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '학습용 회원가입을 해야 평점을 남길 수 있어요.',
-                        style: textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => context.go('/register'),
-                      child: const Text('회원가입'),
-                    ),
-                  ],
-                ),
+              // 보호 화면이라 로그인 상태에서만 열린다. 등록은 토큰으로 사용자를 식별한다.
               Row(
                 children: [
                   Expanded(

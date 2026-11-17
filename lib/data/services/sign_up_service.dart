@@ -5,23 +5,24 @@ import 'package:movielog/data/models/create_member_request.dart';
 import 'package:movielog/data/models/sign_up_models.dart';
 
 // 회원가입 관련 요청 (6주차 MemberCheckService에서 이름 변경). HTTP와 DTO 변환만 담당한다.
+// 모두 토큰이 필요 없는 공개 API라 공개용 Client를 받는다. (v7도 계약은 v6과 같다)
 class SignUpService {
   SignUpService(this._dio);
 
   final Dio _dio;
 
-  // 성공 응답은 v5와 같은 직접 객체({"available": bool})다.
+  // 성공 응답은 공통 형식으로 감싸지 않은 직접 객체({"available": bool})다.
   // 한글 닉네임과 이메일의 @를 path에 넣기 전에 인코딩한다.
   Future<bool> checkNickname(String nickname) async {
     final encoded = Uri.encodeComponent(nickname.trim());
-    final response = await _dio.get('/v6/members/nickname/$encoded');
+    final response = await _dio.get('/v7/members/nickname/$encoded');
     return CheckResult.fromJson(response.data as Map<String, dynamic>)
         .available;
   }
 
   Future<bool> checkEmail(String email) async {
     final encoded = Uri.encodeComponent(email.trim());
-    final response = await _dio.get('/v6/members/email/$encoded');
+    final response = await _dio.get('/v7/members/email/$encoded');
     return CheckResult.fromJson(response.data as Map<String, dynamic>)
         .available;
   }
@@ -30,7 +31,7 @@ class SignUpService {
   Future<CommonResponse<SignUpResult>> signUp(
     CreateMemberRequest request,
   ) async {
-    final response = await _dio.post('/v6/members', data: request.toJson());
+    final response = await _dio.post('/v7/members', data: request.toJson());
     return CommonResponse<SignUpResult>.fromJson(
       response.data as Map<String, dynamic>,
       (value) => SignUpResult.fromJson(value as Map<String, dynamic>),
