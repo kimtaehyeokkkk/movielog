@@ -1,9 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:movielog/data/models/rating_dto.dart';
 import 'package:movielog/data/models/rating_with_movie.dart';
-import 'package:movielog/view_models/learning_member_session.dart';
 import 'package:movielog/view_models/my_ratings_view_model.dart';
 import 'package:movielog/view_models/submit_status.dart';
 import 'package:movielog/widgets/common_app_bar.dart';
@@ -30,23 +28,9 @@ class MyRatingsScreen extends StatelessWidget {
               onBack: viewModel.isDeletingSelected
                   ? null
                   : () => context.canPop() ? context.pop() : context.go('/my'),
-              actions: [
-                if (kDebugMode)
-                  PopupMenuButton<void>(
-                    tooltip: '디버그',
-                    icon: const Icon(Icons.bug_report_outlined),
-                    itemBuilder: (context) => [
-                      PopupMenuItem(
-                        onTap: viewModel.debugFailNextLoad,
-                        child: const Text('다음 목록 조회 실패시키기'),
-                      ),
-                    ],
-                  ),
-              ],
             ),
             // 하단 탭 위가 아니라 root Navigator에 올라오는 화면이라 bottomNavigationBar가 없다.
-            // 다중 선택 중이면서 목록 조회가 성공한 상태에서만 하단에 삭제 버튼을 둔다.
-            // (조회 오류 화면에서는 화면에 없는 평점을 지우지 않도록 숨긴다)
+            // 다중 선택 중이면서 목록이 있을 때만 하단에 삭제 버튼을 둔다.
             bottomNavigationBar: viewModel.isSelecting &&
                     viewModel.status == MyRatingsLoadStatus.success
                 ? _DeleteSelectedBar(viewModel: viewModel)
@@ -57,11 +41,6 @@ class MyRatingsScreen extends StatelessWidget {
                 MyRatingsLoadStatus.idle ||
                 MyRatingsLoadStatus.loading =>
                   const Center(child: CircularProgressIndicator()),
-                MyRatingsLoadStatus.error => _MyRatingsError(
-                    // 저장은 됐고 조회만 실패했다면 그 사실을 먼저 알린다.
-                    message: viewModel.refreshWarning ?? viewModel.message,
-                    onRetry: () => context.read<MyRatingsViewModel>().load(),
-                  ),
                 MyRatingsLoadStatus.empty => const _MyRatingsEmpty(),
                 MyRatingsLoadStatus.success =>
                   _MyRatingsList(viewModel: viewModel),
@@ -226,9 +205,6 @@ class _MyRatingsList extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final notice = viewModel.message;
     final ratings = viewModel.ratings;
-    // 이 목록은 학습용 현재 회원(memberId)으로 조회한 것이라, 그 회원일 때만 수정·삭제를 보여준다.
-    final isOwner =
-        context.watch<LearningMemberSession>().memberId == viewModel.memberId;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -239,7 +215,7 @@ class _MyRatingsList extends StatelessWidget {
               child: Text(
                 viewModel.isSelecting
                     ? '${viewModel.selectedRatingIds.length}개 선택'
-                    : '평점 ${ratings.length}개 · 학습용 memberId ${viewModel.memberId}',
+                    : '이번 로그인에서 등록한 평점 ${ratings.length}개',
                 style: viewModel.isSelecting
                     ? textTheme.titleSmall
                     : textTheme.bodySmall?.copyWith(
@@ -247,13 +223,13 @@ class _MyRatingsList extends StatelessWidget {
                       ),
               ),
             ),
-            if (isOwner)
-              TextButton(
-                onPressed: viewModel.isSelecting
-                    ? viewModel.cancelSelecting
-                    : viewModel.startSelecting,
-                child: Text(viewModel.isSelecting ? '취소' : '편집'),
-              ),
+            // 토큰으로 등록한 평점만 있는 목록이라 모두 본인 평점이다.
+            TextButton(
+              onPressed: viewModel.isSelecting
+                  ? viewModel.cancelSelecting
+                  : viewModel.startSelecting,
+              child: Text(viewModel.isSelecting ? '취소' : '편집'),
+            ),
           ],
         ),
         if (notice != null) ...[
@@ -267,7 +243,6 @@ class _MyRatingsList extends StatelessWidget {
         for (final entry in ratings)
           _RatingCard(
             entry: entry,
-            isOwner: isOwner,
             isSelecting: viewModel.isSelecting,
             isSelected:
                 viewModel.selectedRatingIds.contains(entry.rating.ratingId),
@@ -281,14 +256,12 @@ class _MyRatingsList extends StatelessWidget {
 class _RatingCard extends StatelessWidget {
   const _RatingCard({
     required this.entry,
-    required this.isOwner,
     required this.isSelecting,
     required this.isSelected,
     required this.onToggle,
   });
 
   final RatingWithMovie entry;
-  final bool isOwner;
   final bool isSelecting;
   final bool isSelected;
   final VoidCallback onToggle;
@@ -338,8 +311,9 @@ class _RatingCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // TMDB에 없는 영화여도 평점은 지우지 않고 movieId로 대신 표시한다.
                   Text(
-                    movie?.title ?? '영화 정보를 찾을 수 없어요',
+                    movie?.title ?? '영화 #${rating.movieId}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: textTheme.titleSmall,
@@ -381,7 +355,7 @@ class _RatingCard extends StatelessWidget {
             // 다중 선택 중에는 수정·삭제 버튼 대신 CheckBox를 보여준다.
             if (isSelecting)
               Checkbox(value: isSelected, onChanged: (_) => onToggle())
-            else if (isOwner)
+            else
               Column(
                 children: [
                   IconButton(
@@ -449,40 +423,16 @@ class _MyRatingsEmpty extends StatelessWidget {
             '아직 등록한 평점이 없어요.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
+          const SizedBox(height: 8),
+          // v7에는 토큰 기반 "내 평점 목록" GET이 없어 이전 로그인에서 남긴 평점은 불러올 수 없다.
+          Text(
+            '이번 로그인에서 영화 상세의 평점 남기기로 등록한 평점이 여기에 표시돼요.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+          ),
         ],
-      ),
-    );
-  }
-}
-
-class _MyRatingsError extends StatelessWidget {
-  const _MyRatingsError({required this.message, required this.onRetry});
-
-  final String? message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, size: 48, color: colorScheme.error),
-            const SizedBox(height: 12),
-            Text(
-              message ?? '평점을 불러오지 못했습니다.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            // 고정 너비 예시: 화면 크기와 관계없이 항상 120. 쓰기는 다시 보내지 않고 조회(GET)만 다시 한다.
-            MovieLogButton(label: '다시 시도', width: 120, onPressed: onRetry),
-          ],
-        ),
       ),
     );
   }

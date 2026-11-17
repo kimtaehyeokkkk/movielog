@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:movielog/data/models/create_member_request.dart';
-import 'package:movielog/view_models/learning_member_session.dart';
 import 'package:movielog/view_models/sign_up_view_model.dart';
 import 'package:movielog/view_models/submit_status.dart';
 import 'package:movielog/widgets/common_app_bar.dart';
@@ -172,6 +171,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
+  // 로그인 화면에서 push로 들어왔으면 pop, 직접 들어왔으면 /login으로 간다.
+  void _goToLogin() => context.canPop() ? context.pop() : context.go('/login');
+
   Future<void> _submit() async {
     setState(() {
       _nicknameTouched = true;
@@ -195,14 +197,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
     if (!mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
-    final memberId = viewModel.createdMemberId;
-    if (viewModel.submitStatus == SubmitStatus.success && memberId != null) {
-      // 가입 결과의 memberId를 학습용 현재 회원으로 보관해 이후 평점 요청에 쓴다.
-      context.read<LearningMemberSession>().setMemberId(memberId);
+    if (viewModel.submitStatus == SubmitStatus.success &&
+        viewModel.createdMemberId != null) {
+      // 8주차부터 회원 식별은 memberId가 아니라 로그인 토큰이다. 가입 후 로그인 화면으로 돌아간다.
       messenger.showSnackBar(
-        SnackBar(content: Text('회원가입이 완료되었습니다. (memberId $memberId)')),
+        const SnackBar(content: Text('회원가입이 완료되었습니다. 로그인해 주세요.')),
       );
-      context.go('/movies');
+      _goToLogin();
       return;
     }
 
@@ -246,7 +247,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return PopScope(
       canPop: !isSubmitting,
       child: Scaffold(
-      appBar: const CommonAppBar(title: '회원가입'),
+      appBar: CommonAppBar(
+        title: '회원가입',
+        onBack: isSubmitting ? null : _goToLogin,
+      ),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {

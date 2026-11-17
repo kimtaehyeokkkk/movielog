@@ -3,71 +3,73 @@ import 'package:movielog/data/models/common_response.dart';
 import 'package:movielog/data/models/rating_dto.dart';
 import 'package:movielog/data/models/rating_request.dart';
 
-// 평점 조회·등록·수정·삭제 (v6). HTTP와 DTO 변환만 담당한다.
+// 등록·수정 성공 응답은 공통 형식이고 result가 평점 객체 전체다. (v6: ID?/null)
+RatingDto parseRatingResult(Object? data) {
+  if (data is! Map<String, dynamic>) {
+    throw StateError('평점 응답 형식이 올바르지 않습니다.');
+  }
+  final common = CommonResponse<RatingDto>.fromJson(
+    data,
+    (value) => RatingDto.fromJson(value as Map<String, dynamic>),
+  );
+  final rating = common.result;
+  if (rating == null) throw StateError('평점 result가 없습니다.');
+  return rating;
+}
+
+// 유저별 평점 조회 성공은 공통 형식으로 감싸지 않은 배열 그대로다.
+List<RatingDto> parseRatingList(Object? data) {
+  if (data is! List) throw StateError('평점 목록 응답은 배열이어야 합니다.');
+  return data
+      .map((value) => RatingDto.fromJson(value as Map<String, dynamic>))
+      .toList();
+}
+
+// 평점 API (v7). 같은 Service 안에서도 메서드마다 Client가 다르다.
+// - 유저별 평점 조회: 공개 API → 공개용 Client (토큰 없음)
+// - 등록·수정·삭제: 보호 API → 보호용 Client (AuthInterceptor가 Bearer를 붙임)
+// 사용자 식별은 path의 memberId가 아니라 Authorization 헤더로 바뀌어 memberId 인자가 없다.
 class RatingApiService {
-  RatingApiService(this._dio);
+  RatingApiService(this._publicDio, this._authDio);
 
-  final Dio _dio;
+  final Dio _publicDio;
+  final Dio _authDio;
 
-  // 성공 응답은 Wrapper 없이 평점 배열 그대로다. (ratingId 내림차순)
-  Future<List<RatingDto>> fetchMyRatings(int memberId) async {
-    final response = await _dio.get('/v6/members/$memberId/ratings');
-    final list = response.data as List<dynamic>;
-    return list
-        .map((item) => RatingDto.fromJson(item as Map<String, dynamic>))
-        .toList();
+  // v7에도 토큰 기반 "내 평점 목록" GET은 없다. 로그인·내 정보 응답에 memberId가 없어서
+  // 지금 화면에서는 쓰지 않고, 공개 조회 계약만 남겨 둔다.
+  Future<List<RatingDto>> fetchMemberRatings(int memberId) async {
+    final response = await _publicDio.get('/v7/members/$memberId/ratings');
+    return parseRatingList(response.data);
   }
 
-  // 201 + 공통 응답. 명세 설명은 result가 ratingId 숫자라고 하지만 예시는 null이라
-  // 계약이 확정되기 전에는 result를 파싱하지 않고, 등록 뒤 GET으로 목록을 다시 확인한다.
-  Future<void> createRating({
-    required int memberId,
-    required CreateRatingRequest request,
-  }) async {
-    final response = await _dio.post(
-      '/v6/members/$memberId/ratings',
-      data: request.toJson(),
-    );
-    if (response.statusCode != 201) {
-      throw StateError('예상하지 못한 등록 응답: ${response.statusCode}');
-    }
+  // 201 + result 평점 객체. body에 memberId를 넣지 않는다.
+  Future<RatingDto> createRating(CreateRatingRequest request) async {
+    final response = await _authDio.post('/v7/ratings', data: request.toJson());
+    return parseRatingResult(response.data);
   }
 
-  // 200 + result null
-  Future<void> updateRating({
-    required int memberId,
+  // 200 + result 수정된 평점 전체. comment를 빼면 null로 덮이는 전체 교체 계약이다.
+  Future<RatingDto> updateRating({
     required int ratingId,
     required UpdateRatingRequest request,
   }) async {
-    await _dio.patch(
-      '/v6/members/$memberId/ratings/$ratingId',
+    final response = await _authDio.patch(
+      '/v7/ratings/$ratingId',
       data: request.toJson(),
     );
+    return parseRatingResult(response.data);
   }
 
-  // 204 + 본문 없음. 성공 응답을 JSON으로 파싱하지 않는다.
-  Future<void> deleteRating({
-    required int memberId,
-    required int ratingId,
-  }) async {
-    final response =
-        await _dio.delete('/v6/members/$memberId/ratings/$ratingId');
-    if (response.statusCode != 204) {
+  // v6의 204와 달리 200 + 공통 형식(result null)이다.
+  Future<void> deleteRating(int ratingId) async {
+    final response = await _authDio.delete('/v7/ratings/$ratingId');
+    if (response.statusCode != 200) {
       throw StateError('예상하지 못한 삭제 응답: ${response.statusCode}');
     }
   }
 }
 
-// 목록 조회(GET) 실패 문구. 빈 배열은 실패가 아니라 Empty다.
-String writeMyRatingsErrorMessage(DioException error) {
-  final status = error.response?.statusCode;
-  if (status == 400) return 'memberId 형식을 다시 확인해 주세요.';
-  if (status == 404) return '존재하지 않는 회원입니다.';
-  return '평점을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';
-}
-
-// 쓰기 실패 문구. 같은 COMMON404라도 등록은 "유저", 수정·삭제는 "평점"을 가리켜서
-// code로 문구를 새로 만들지 않고 서버 message를 그대로 쓴다.
+// 쓰기 실패 문구. 서버 message를 그대로 쓰고, 공통 형식이 아니면 연결 상태로 안내한다.
 String writeErrorMessage(DioException error) {
   final common = CommonResponse.tryParse(error.response?.data);
   if (common != null) return common.message;
@@ -78,16 +80,4 @@ String writeErrorMessage(DioException error) {
       '서버에 연결하지 못했습니다. 네트워크를 확인해 주세요.',
     _ => '요청에 실패했습니다. 잠시 후 다시 시도해 주세요.',
   };
-}
-
-// code는 문구가 아니라 다음 UI 행동에만 쓴다. 403·404는 화면의 목록이 서버와
-// 어긋났다는 뜻이라 다시 조회하고, 400·409는 값만 고쳐 다시 시도하면 되므로 조회하지 않는다.
-// 본문을 파싱하지 못해도 HTTP 상태 코드가 403·404면 같은 의미로 본다.
-bool shouldRefreshAfterRatingError(DioException error) {
-  final code = CommonResponse.tryParse(error.response?.data)?.code;
-  final status = error.response?.statusCode;
-  return code == 'COMMON403' ||
-      code == 'COMMON404' ||
-      status == 403 ||
-      status == 404;
 }

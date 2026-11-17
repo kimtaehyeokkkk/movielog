@@ -31,7 +31,7 @@ class _FakeMemberCheckService extends SignUpService {
     nicknameCalls++;
     if (shouldFail) {
       throw DioException(
-        requestOptions: RequestOptions(path: '/v6/members/nickname'),
+        requestOptions: RequestOptions(path: '/v7/members/nickname'),
         type: DioExceptionType.connectionError,
       );
     }
@@ -57,7 +57,7 @@ class _FakeMemberCheckService extends SignUpService {
 }
 
 DioException _signUpError(int statusCode, String code, String message) {
-  final options = RequestOptions(path: '/v6/members');
+  final options = RequestOptions(path: '/v7/members');
   return DioException(
     requestOptions: options,
     response: Response(
@@ -239,7 +239,7 @@ void main() {
     });
 
     test('공통 형식이 아닌 오류 본문이면 기본 실패 문구를 보여준다', () async {
-      final options = RequestOptions(path: '/v6/members');
+      final options = RequestOptions(path: '/v7/members');
       final service = _FakeMemberCheckService()
         ..signUpResult = DioException(
           requestOptions: options,
