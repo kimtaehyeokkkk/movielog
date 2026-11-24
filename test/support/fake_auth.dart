@@ -12,7 +12,7 @@ import 'package:movielog/view_models/auth_view_model.dart';
 
 // v7 공통 오류 응답을 가진 DioException
 DioException apiError(int statusCode, String code, String message) {
-  final options = RequestOptions(path: '/v7');
+  final options = RequestOptions(path: '/v8');
   return DioException(
     requestOptions: options,
     response: Response(
@@ -30,7 +30,7 @@ DioException apiError(int statusCode, String code, String message) {
 }
 
 DioException networkError() => DioException(
-      requestOptions: RequestOptions(path: '/v7'),
+      requestOptions: RequestOptions(path: '/v8'),
       type: DioExceptionType.connectionError,
     );
 

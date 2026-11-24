@@ -60,11 +60,11 @@ void main() {
         before: [AuthInterceptor(MemoryTokenStorage('token-a'))],
       );
 
-      await dio.get('/v7/members/me');
-      await dio.post('/v7/ratings');
-      await dio.patch('/v7/ratings/3');
-      await dio.post('/v7/auth/login');
-      await dio.get('/v7/members/1/ratings');
+      await dio.get('/v8/members/me');
+      await dio.post('/v8/ratings');
+      await dio.patch('/v8/ratings/3');
+      await dio.post('/v8/auth/login');
+      await dio.get('/v8/members/1/ratings');
       await dio.get('https://api.themoviedb.org/3/movie/550');
 
       final headers = captured.map((o) => o.headers['Authorization']).toList();
@@ -80,7 +80,7 @@ void main() {
       );
 
       await dio.get(
-        '/v7/members/me',
+        '/v8/members/me',
         options: Options(headers: {'Authorization': 'Bearer stale'}),
       );
 
@@ -94,7 +94,7 @@ void main() {
       );
 
       final error = await dio
-          .get('/v7/members/me')
+          .get('/v8/members/me')
           .then<DioException?>((_) => null, onError: (e) => e as DioException);
 
       expect(error?.response, isNull);
@@ -136,7 +136,7 @@ void main() {
       );
 
       expect(result.accessToken, 'jwt');
-      expect(captured.single.uri.path, '/v7/auth/login');
+      expect(captured.single.uri.path, '/v8/auth/login');
       expect(captured.single.data, {'email': 'a@umc.com', 'password': ' Pw1! '});
     });
 
@@ -178,12 +178,12 @@ void main() {
 
       expect(created.ratingId, 7);
       expect(updated.movieId, 550);
-      expect(authCaptured[0].uri.path, '/v7/ratings');
+      expect(authCaptured[0].uri.path, '/v8/ratings');
       expect(authCaptured[0].data, {'movieId': 550, 'score': 5});
-      expect(authCaptured[1].uri.path, '/v7/ratings/7');
+      expect(authCaptured[1].uri.path, '/v8/ratings/7');
       expect(authCaptured[1].data, {'score': 5, 'comment': null});
       // 공개 조회는 공개 Client로 간다.
-      expect(publicCaptured.single.uri.path, '/v7/members/1/ratings');
+      expect(publicCaptured.single.uri.path, '/v8/members/1/ratings');
       expect(list.single.ratingId, 7);
     });
 
@@ -206,8 +206,8 @@ void main() {
       await service.checkEmail('a@umc.com');
 
       expect(captured[0].uri.path,
-          '/v7/members/nickname/%EC%98%81%ED%99%94%EA%B4%91');
-      expect(captured[1].uri.path, '/v7/members/email/a%40umc.com');
+          '/v8/members/nickname/%EC%98%81%ED%99%94%EA%B4%91');
+      expect(captured[1].uri.path, '/v8/members/email/a%40umc.com');
     });
   });
 
