@@ -242,7 +242,8 @@ class AppRouter {
               title: '영화 상세',
               builder: (context, accountId, guard) =>
                   ChangeNotifierProvider<FavoriteDetailViewModel>(
-                key: ValueKey('$accountId:${guard.generation}'),
+                // 영화 ID가 바뀌어도 하위 상태(즐겨찾기 여부·상세 Loader)를 새로 만든다.
+                key: ValueKey('$id:$accountId:${guard.generation}'),
                 create: (context) => FavoriteDetailViewModel(
                   movieId: id,
                   favoriteApi: context.read<FavoriteApiService>(),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:movielog/core/utils/safe_notify.dart';
@@ -24,12 +26,18 @@ class PagedMoviesViewModel extends ChangeNotifier with SafeNotify {
   int nextPage = 1; // 다음에 요청할 page. 실패하면 그대로 둬서 같은 page를 다시 요청한다.
   int totalPages = 1; // min(서버 total_pages, 500)
   bool isLoadingMore = false;
+  // 당겨서 새로고침 중. 기존 목록·page를 그대로 보여주고 다음 page 요청만 막는다.
+  bool isRefreshing = false;
   String? errorMessage; // 첫 조회 실패
   String? loadMoreError; // 다음 page 실패 (기존 목록은 지우지 않음)
+  String? refreshError; // 새로고침 실패 (기존 목록 유지)
 
   // 장르 목록 (영화 목록 화면에서만 사용)
   List<TmdbGenreDto> genres = const [];
   Map<int, String> genreNames = const {};
+  // 한 번 성공하면(목록이 비어 있어도) 다시 요청하지 않는다. 진행 중인 요청은 재사용한다.
+  bool _genresLoaded = false;
+  Future<void>? _genresRequest;
 
   // 조건이 바뀔 때마다 올라간다. 요청 시점 값과 다르면 이전 조건의 늦은 응답이라 버린다.
   int _requestGeneration = 0;
@@ -51,7 +59,9 @@ class PagedMoviesViewModel extends ChangeNotifier with SafeNotify {
     phase = LoadPhase.loading;
     errorMessage = null;
     loadMoreError = null;
+    refreshError = null;
     isLoadingMore = false;
+    isRefreshing = false;
     movies.clear();
     nextPage = 1;
     totalPages = 1;
@@ -75,8 +85,54 @@ class PagedMoviesViewModel extends ChangeNotifier with SafeNotify {
   }
 
   // 현재 조건 그대로 첫 page부터 다시 (당겨서 새로고침·오류 화면의 다시 시도)
-  Future<void> refresh() =>
-      loadInitial(genreIds: _condition.genreIds, query: _condition.query);
+  // 보여줄 목록이 있으면 기존 목록·page를 유지한 채 1페이지를 받아, 성공하면 교체하고
+  // 실패하면 기존 목록을 그대로 둔다. 목록이 없으면(오류·빈 결과) 첫 로딩과 같다.
+  Future<void> refresh() async {
+    if (isDisposed) return;
+    // 장르 목록이 아직 성공한 적 없으면 함께 다시 요청한다. (영화 목록 화면만)
+    if (_condition.query.isEmpty) unawaited(loadGenres());
+    if (phase != LoadPhase.ready || movies.isEmpty) {
+      return loadInitial(genreIds: _condition.genreIds, query: _condition.query);
+    }
+
+    // 진행 중이던 다음 page 응답은 generation으로 버린다.
+    final generation = ++_requestGeneration;
+    isRefreshing = true;
+    isLoadingMore = false;
+    loadMoreError = null;
+    refreshError = null;
+    notifyIfAlive();
+    try {
+      final page = await _fetchPage(1, _condition);
+      if (generation != _requestGeneration || isDisposed) return;
+      _applyFirstPage(page);
+    } catch (_) {
+      if (generation != _requestGeneration || isDisposed) return;
+      refreshError = '새로고침하지 못했습니다. 기존 목록을 그대로 보여줍니다.';
+    } finally {
+      if (generation == _requestGeneration && !isDisposed) {
+        isRefreshing = false;
+        notifyIfAlive();
+      }
+    }
+  }
+
+  // 검색어를 다 지웠을 때: 요청 없이 처음(idle) 상태로 돌리고 진행 중이던 응답은 버린다.
+  void clear() {
+    if (isDisposed) return;
+    _requestGeneration++;
+    _condition = (genreIds: _condition.genreIds, query: '');
+    phase = LoadPhase.idle;
+    movies.clear();
+    nextPage = 1;
+    totalPages = 1;
+    isLoadingMore = false;
+    isRefreshing = false;
+    errorMessage = null;
+    loadMoreError = null;
+    refreshError = null;
+    notifyIfAlive();
+  }
 
   // 장르 변경: 같은 조건이면 다시 요청하지 않는다. (오류 상태면 다시 시도)
   Future<void> selectGenres(List<int>? genreIds) async {
@@ -90,7 +146,11 @@ class PagedMoviesViewModel extends ChangeNotifier with SafeNotify {
 
   // 다음 page. 실패해도 nextPage를 올리지 않아 같은 page를 다시 요청할 수 있다.
   Future<void> loadNextPage() async {
-    if (isDisposed || isLoadingMore || !hasMore || phase != LoadPhase.ready) {
+    if (isDisposed ||
+        isLoadingMore ||
+        isRefreshing ||
+        !hasMore ||
+        phase != LoadPhase.ready) {
       return;
     }
     final generation = _requestGeneration;
@@ -121,17 +181,25 @@ class PagedMoviesViewModel extends ChangeNotifier with SafeNotify {
     }
   }
 
-  // 장르 목록은 한 번만 받는다. 실패해도 영화 목록은 보여주고 장르 칩만 숨긴다.
-  Future<void> loadGenres() async {
-    if (genres.isNotEmpty || isDisposed) return;
+  // 장르 목록은 성공할 때까지만 받는다. 실패해도 영화 목록은 보여주고 장르 칩만 숨기며,
+  // 새로고침 때 다시 시도한다.
+  Future<void> loadGenres() {
+    if (_genresLoaded || isDisposed) return Future.value();
+    return _genresRequest ??= _fetchGenres();
+  }
+
+  Future<void> _fetchGenres() async {
     try {
       final fetched = await tmdbApi.fetchGenres();
       if (isDisposed) return;
       genres = fetched;
       genreNames = {for (final genre in fetched) genre.id: genre.name};
+      _genresLoaded = true;
       notifyIfAlive();
     } catch (_) {
       // 장르 칩 없이 진행
+    } finally {
+      _genresRequest = null;
     }
   }
 

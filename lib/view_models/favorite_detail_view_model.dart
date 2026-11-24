@@ -123,6 +123,12 @@ class FavoriteDetailViewModel extends ChangeNotifier with SafeNotify {
       if (!_stillCurrent(snap)) return;
       isFavorite = synced.isFavorite;
       errorMessage = null;
+    } on DioException catch (error) {
+      if (!_stillCurrent(snap)) return;
+      // 동기화 조회에서도 세션이 만료됐을 수 있다. (요청 당시 세션으로 정리)
+      if (await _expireIfNeeded(error, snap)) return;
+      isFavorite = before;
+      errorMessage = '서버 상태를 다시 확인하지 못했습니다.';
     } catch (_) {
       if (!_stillCurrent(snap)) return;
       isFavorite = before;

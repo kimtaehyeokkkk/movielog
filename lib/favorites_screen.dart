@@ -155,15 +155,19 @@ class _MissingMovieCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
 
+    // 제목·오류 문구·재조회 버튼이 셀 안에 먼저 자리를 잡고, placeholder 포스터는 남은 높이만 쓴다.
+    // (2:3 포스터를 고정하면 버튼까지 셀 높이를 넘는다)
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const AspectRatio(
-          aspectRatio: 2 / 3,
-          child: ClipRRect(
-            borderRadius: BorderRadius.all(Radius.circular(12)),
-            // posterPath가 null이면 placeholder가 그려진다.
-            child: TmdbPosterImage(posterPath: null),
+        const Expanded(
+          child: SizedBox(
+            width: double.infinity,
+            child: ClipRRect(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+              // posterPath가 null이면 placeholder가 그려진다.
+              child: TmdbPosterImage(posterPath: null),
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -174,7 +178,7 @@ class _MissingMovieCard extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: textTheme.bodySmall?.copyWith(color: colorScheme.error),
         ),
-        const Spacer(),
+        const SizedBox(height: 4),
         MovieLogButton(
           label: '정보 재조회',
           width: double.infinity,

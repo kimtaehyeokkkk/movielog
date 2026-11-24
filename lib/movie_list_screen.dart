@@ -194,6 +194,15 @@ class _InfiniteMovieGridState extends State<_InfiniteMovieGrid> {
             ),
           ),
         ),
+        // 새로고침이 실패해도 기존 목록은 그대로 두고 안내만 한다.
+        if (vm.refreshError != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
+            child: Text(
+              vm.refreshError!,
+              style: textTheme.bodySmall?.copyWith(color: colorScheme.error),
+            ),
+          ),
         Expanded(
           child: MovieGrid(
             controller: _controller,

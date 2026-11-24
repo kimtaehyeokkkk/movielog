@@ -40,8 +40,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     final viewModel = context.read<MovieDetailViewModel>();
     final favorite = context.read<FavoriteDetailViewModel>();
     // 즐겨찾기 여부를 서버에서 확인했고 아직 즐겨찾기하지 않은 영화일 때만 체크박스를 보여준다.
-    final alreadyFavorite = favorite.isFavorite;
-    final showAddToFavorite = favorite.hasLoadedStatus && !alreadyFavorite;
+    final showAddToFavorite = favorite.hasLoadedStatus && !favorite.isFavorite;
 
     final saved = await showDialog<bool>(
       context: context,
@@ -53,7 +52,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
             score: score,
             comment: comment,
             addToFavorites: addToFavorites,
-            alreadyFavorite: alreadyFavorite || !favorite.hasLoadedStatus,
+            // Dialog를 연 뒤 여부 조회가 끝났을 수 있어 제출 시점의 값으로 판단한다.
+            // 여부를 아직 모르면 movie-records(전체 롤백 위험) 대신 평점 API만 쓴다.
+            alreadyFavorite: favorite.isFavorite || !favorite.hasLoadedStatus,
           );
           if (viewModel.submitStatus != SubmitStatus.success) {
             // 입력 오류·네트워크 실패는 Dialog 안에, 409·회원 없음은 Dialog를 닫고 Snackbar로.

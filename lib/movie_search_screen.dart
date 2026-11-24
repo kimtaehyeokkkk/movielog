@@ -35,6 +35,8 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
     _debounce?.cancel(); // 제출했으면 기다리던 자동 검색은 필요 없다.
     final query = value.trim();
     if (query.isEmpty) {
+      // 빈 검색어는 서버에 보내지 않고, 이전 결과도 지워 처음 상태로 돌린다.
+      context.read<PagedMoviesViewModel>().clear();
       setState(() => _inputError = '검색어를 입력해 주세요.');
       return;
     }
@@ -44,11 +46,14 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
   // Challenge: 입력할 때마다 이전 타이머를 취소하고 500ms 타이머를 새로 시작한다.
   void _onChanged(String value) {
     _debounce?.cancel();
+    // 입력을 다 지웠으면 요청 없이 바로 처음 상태로 돌린다. (진행 중이던 검색 응답도 무시)
+    if (value.trim().isEmpty) {
+      context.read<PagedMoviesViewModel>().clear();
+      return;
+    }
     _debounce = Timer(_debounceDuration, () {
       if (!mounted) return;
-      final query = value.trim();
-      if (query.isEmpty) return; // 빈 검색어는 요청하지 않는다.
-      _search(query);
+      _search(value.trim());
     });
   }
 

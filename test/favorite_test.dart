@@ -1,8 +1,12 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:movielog/core/network/auth_interceptor.dart';
+import 'package:movielog/data/models/member_info.dart';
+import 'package:movielog/favorites_screen.dart';
+import 'package:provider/provider.dart';
 import 'package:movielog/core/session/auth_session_bridge.dart';
 import 'package:movielog/core/session/session_guard.dart';
 import 'package:movielog/core/utils/map_bounded.dart';
@@ -382,16 +386,57 @@ void main() {
     });
 
     test('다른 계정으로 바뀐 뒤에는 이전 ViewModel이 조회하지 않는다', () async {
-      final (vm, api, _, session) = await create(favorites: {550});
+      final memberApi = FakeMemberApiService();
+      final session = await _Session.signedIn(memberApi: memberApi);
+      final api = _FakeFavoriteApi({550});
+      final vm = FavoritesViewModel(
+        favoriteApi: api,
+        tmdbApi: _FakeTmdb(),
+        sessionGuard: session.guard,
+        accountId: session.accountId,
+        auth: session.auth,
+      );
       await session.auth.logout();
+      // 계정 B로 로그인: GET me가 B의 email을 돌려준다.
+      memberApi.meResult = MemberInfo(
+        email: 'b@umc.com',
+        nickname: '계정B',
+        createdAt: DateTime.utc(2026, 11, 1),
+      );
       await session.auth.login('b@umc.com', 'Password1!');
       await session.auth.loadMember();
+      expect(session.guard.accountId, 'b@umc.com');
 
       await vm.refresh();
 
       expect(vm.phase, LoadPhase.idle);
       expect(vm.items, isEmpty);
       expect(api.favorites, {550});
+    });
+
+    testWidgets('영화 정보 실패 카드도 셀 높이 안에 들어가고 재조회 버튼이 보인다', (tester) async {
+      final (vm, _, _, _) = await tester.runAsync(
+        () => create(favorites: {550, 13}, failing: {13}),
+      ) as (FavoritesViewModel, _FakeFavoriteApi, _FakeTmdb, _Session);
+      await tester.runAsync(vm.refresh);
+      tester.view.physicalSize = const Size(360, 760);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<FavoritesViewModel>.value(
+          value: vm,
+          child: MaterialApp(
+            home: FavoritesScreen(onOpenMovie: (_) async {}),
+          ),
+        ),
+      );
+      // 화면이 열리며 부른 refresh()의 TMDB 조회까지 끝낸다.
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull); // RenderFlex overflow 없음
+      expect(find.text('영화 #13'), findsOneWidget);
+      expect(find.text('정보 재조회'), findsOneWidget);
     });
 
     test('TMDB 보충 조회는 동시에 최대 5개', () async {
