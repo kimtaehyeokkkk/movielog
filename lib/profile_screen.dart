@@ -101,6 +101,8 @@ class ProfileBody extends StatelessWidget {
             const ProfileStats(),
             const SizedBox(height: 16),
             const MyRatingsEntry(),
+            // "내가 등록한 평점" 아래에 "내 즐겨찾기" (member가 있을 때만 이 화면이 그려진다)
+            const MyFavoritesEntry(),
             const SizedBox(height: 24),
             const FavoriteGenres(),
             const SizedBox(height: 32),
@@ -123,6 +125,22 @@ class MyRatingsEntry extends StatelessWidget {
       title: Text('내가 등록한 평점', style: AppTextStyles.titleMedium),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => context.push('/my/ratings'),
+    );
+  }
+}
+
+// 마이페이지 → "내 즐겨찾기" 자식 화면 진입 행
+class MyFavoritesEntry extends StatelessWidget {
+  const MyFavoritesEntry({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.bookmark_outline, color: AppColors.violet),
+      title: Text('내 즐겨찾기', style: AppTextStyles.titleMedium),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => context.push('/my/favorites'),
     );
   }
 }

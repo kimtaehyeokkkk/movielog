@@ -4,10 +4,12 @@ import 'package:movielog/data/models/tmdb_movie_dto.dart';
 import 'package:movielog/widgets/tmdb_poster_image.dart';
 
 class MovieCard extends StatelessWidget {
-  const MovieCard({super.key, required this.movie, this.genreName});
+  const MovieCard({super.key, required this.movie, this.genreName, this.onTap});
 
   final TmdbMovieDto movie;
   final String? genreName;
+  // 없으면 영화 상세로 이동한다. 상세에서 돌아온 뒤 할 일이 있는 화면(내 즐겨찾기)은 직접 넘긴다.
+  final VoidCallback? onTap;
 
   // release_date나 장르가 없으면 그 부분만 빼고 표시한다.
   String get _subtitle {
@@ -25,7 +27,7 @@ class MovieCard extends StatelessWidget {
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => context.push('/movies/${movie.id}', extra: movie),
+      onTap: onTap ?? () => context.push('/movies/${movie.id}', extra: movie),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

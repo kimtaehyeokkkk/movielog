@@ -1,57 +1,23 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:movielog/view_models/movie_list_view_model.dart';
+import 'package:go_router/go_router.dart';
+import 'package:movielog/view_models/load_phase.dart';
+import 'package:movielog/view_models/paged_movies_view_model.dart';
 import 'package:movielog/widgets/common_app_bar.dart';
 import 'package:movielog/widgets/genre_chip_bar.dart';
 import 'package:movielog/widgets/genre_filter_sheet.dart';
-import 'package:movielog/widgets/load_retry_dialog.dart';
 import 'package:movielog/widgets/movie_grid.dart';
 import 'package:movielog/widgets/movie_list_empty.dart';
 import 'package:movielog/widgets/movie_list_error.dart';
 import 'package:movielog/widgets/movie_list_loading.dart';
+import 'package:movielog/widgets/movie_page_footer.dart';
 import 'package:provider/provider.dart';
 
 // 디버그 전용: 존재하지 않는 장르 id로 Discover를 요청해 실제 빈 응답(Empty)을 재현한다.
 const _debugEmptyGenreId = 999999;
 
-// 최근 목록을 유지한 채 실패했으면 재시도 Dialog를 띄우고, 재시도할 때마다 다시 확인한다.
-Future<void> _showRetryDialogIfNeeded(
-  BuildContext context,
-  MovieListLoadOutcome outcome,
-) async {
-  var current = outcome;
-
-  while (current == MovieListLoadOutcome.failedWithPreviousList) {
-    if (!context.mounted) return;
-    final shouldRetry = await showDialog<bool>(
-      context: context,
-      builder: (context) => const LoadRetryDialog(),
-    );
-    if (shouldRetry != true || !context.mounted) return;
-    current = await context.read<MovieListViewModel>().retry();
-  }
-}
-
-Future<void> _selectGenres(BuildContext context, List<int>? genreIds) async {
-  final outcome =
-      await context.read<MovieListViewModel>().selectGenres(genreIds);
-  if (!context.mounted) return;
-  await _showRetryDialogIfNeeded(context, outcome);
-}
-
-// context는 Consumer builder의 것을 받는다. 재시도 중 목록이 Skeleton으로 바뀌어
-// _RefreshableList가 사라져도 이 context는 남아 있어 Dialog를 다시 띄울 수 있다.
-Future<void> _refreshList(BuildContext context) async {
-  final outcome = await context.read<MovieListViewModel>().refresh();
-  if (!context.mounted) return;
-  // 인디케이터는 바로 닫고, Dialog는 그 뒤에 따로 띄운다.
-  unawaited(_showRetryDialogIfNeeded(context, outcome));
-}
-
 Future<void> _openGenreFilterSheet(BuildContext context) async {
-  final viewModel = context.read<MovieListViewModel>();
+  final viewModel = context.read<PagedMoviesViewModel>();
   final selected = await showModalBottomSheet<List<int>>(
     context: context,
     isScrollControlled: true,
@@ -63,8 +29,9 @@ Future<void> _openGenreFilterSheet(BuildContext context) async {
   );
 
   // 시트를 그냥 닫으면 null → 선택을 바꾸지 않는다. 빈 목록이면 "전체".
+  // 확인하면 목록·page를 비우고 첫 page부터 다시 불러온다.
   if (selected == null || !context.mounted) return;
-  await _selectGenres(context, selected);
+  await viewModel.selectGenres(selected);
 }
 
 class MovieListScreen extends StatelessWidget {
@@ -76,15 +43,32 @@ class MovieListScreen extends StatelessWidget {
       appBar: CommonAppBar(
         title: '영화',
         actions: [
+          IconButton(
+            tooltip: '영화 검색',
+            icon: const Icon(Icons.search),
+            onPressed: () => context.push('/movies/search'),
+          ),
           if (kDebugMode)
-            IconButton(
-              tooltip: '디버그: Empty 재현',
+            PopupMenuButton<void>(
+              tooltip: '디버그',
               icon: const Icon(Icons.bug_report_outlined),
-              onPressed: () => _selectGenres(context, [_debugEmptyGenreId]),
+              itemBuilder: (menuContext) {
+                final viewModel = context.read<PagedMoviesViewModel>();
+                return [
+                  PopupMenuItem(
+                    onTap: viewModel.debugFailNextPage,
+                    child: const Text('다음 페이지 요청 실패시키기'),
+                  ),
+                  PopupMenuItem(
+                    onTap: () => viewModel.selectGenres([_debugEmptyGenreId]),
+                    child: const Text('Empty 재현'),
+                  ),
+                ];
+              },
             ),
         ],
       ),
-      body: Consumer<MovieListViewModel>(
+      body: Consumer<PagedMoviesViewModel>(
         builder: (context, viewModel, child) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -97,7 +81,7 @@ class MovieListScreen extends StatelessWidget {
                       child: IconButton(
                         tooltip: '장르 여러 개 선택',
                         icon: const Icon(Icons.tune),
-                        onPressed: viewModel.isBusy
+                        onPressed: viewModel.isLoading
                             ? null
                             : () => _openGenreFilterSheet(context),
                       ),
@@ -106,9 +90,8 @@ class MovieListScreen extends StatelessWidget {
                       child: GenreChipBar(
                         genres: viewModel.genres,
                         selectedGenreIds: viewModel.selectedGenreIds,
-                        enabled: !viewModel.isBusy,
-                        onSelected: (genreId) => _selectGenres(
-                          context,
+                        enabled: !viewModel.isLoading,
+                        onSelected: (genreId) => viewModel.selectGenres(
                           genreId == null ? null : [genreId],
                         ),
                       ),
@@ -117,24 +100,21 @@ class MovieListScreen extends StatelessWidget {
                 ),
               const SizedBox(height: 8),
               Expanded(
-                // Loading(Skeleton)은 RefreshIndicator 밖이라 당겨서 새로고침이 동작하지 않는다.
-                child: switch (viewModel.status) {
-                  MovieListLoadStatus.idle ||
-                  MovieListLoadStatus.loading =>
+                child: switch (viewModel.phase) {
+                  LoadPhase.idle ||
+                  LoadPhase.loading =>
                     const MovieListLoading(),
-                  MovieListLoadStatus.error => MovieListError(
-                      message: viewModel.message,
-                      isTimeout: viewModel.isTimeout,
-                      onRetry: () =>
-                          context.read<MovieListViewModel>().retry(),
+                  LoadPhase.error => MovieListError(
+                      message: viewModel.errorMessage,
+                      onRetry: viewModel.refresh,
                     ),
-                  MovieListLoadStatus.empty => _RefreshableList(
-                      onRefresh: () => _refreshList(context),
+                  LoadPhase.empty => RefreshIndicator(
+                      onRefresh: viewModel.refresh,
                       child: const MovieListEmpty(),
                     ),
-                  MovieListLoadStatus.success => _RefreshableList(
-                      onRefresh: () => _refreshList(context),
-                      child: _MovieListContent(viewModel: viewModel),
+                  LoadPhase.ready => RefreshIndicator(
+                      onRefresh: viewModel.refresh,
+                      child: _InfiniteMovieGrid(viewModel: viewModel),
                     ),
                 },
               ),
@@ -146,38 +126,61 @@ class MovieListScreen extends StatelessWidget {
   }
 }
 
-class _RefreshableList extends StatelessWidget {
-  const _RefreshableList({required this.onRefresh, required this.child});
+// Challenge: 무한 스크롤. 끝에 가까워지면 다음 page를 자동으로 부른다.
+// 다음 page가 실패하면 자동으로 다시 부르지 않고 footer의 다시 시도 버튼을 기다린다.
+class _InfiniteMovieGrid extends StatefulWidget {
+  const _InfiniteMovieGrid({required this.viewModel});
 
-  final RefreshCallback onRefresh;
-  final Widget child;
+  final PagedMoviesViewModel viewModel;
 
   @override
-  Widget build(BuildContext context) {
-    return RefreshIndicator(onRefresh: onRefresh, child: child);
-  }
+  State<_InfiniteMovieGrid> createState() => _InfiniteMovieGridState();
 }
 
-class _MovieListContent extends StatelessWidget {
-  const _MovieListContent({required this.viewModel});
+class _InfiniteMovieGridState extends State<_InfiniteMovieGrid> {
+  // 남은 스크롤 거리가 이보다 작으면 다음 page를 요청한다.
+  static const _loadMoreThreshold = 400.0;
+  final _controller = ScrollController();
 
-  final MovieListViewModel viewModel;
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_maybeLoadMore);
+  }
 
-  String get _summary {
-    final selected = viewModel.selectedGenreIds;
-    final count = '영화 ${viewModel.movies.length}편';
+  void _maybeLoadMore() {
+    final vm = widget.viewModel;
+    if (!_controller.hasClients || vm.loadMoreError != null) return;
+    // 중복 요청 방지(isLoadingMore·hasMore 확인)는 ViewModel이 한다.
+    if (_controller.position.extentAfter < _loadMoreThreshold) {
+      vm.loadNextPage();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_maybeLoadMore);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String _summary(PagedMoviesViewModel vm) {
+    final selected = vm.selectedGenreIds;
+    final count = '영화 ${vm.movies.length}편 · ${vm.loadedPage}/${vm.totalPages}페이지';
     if (selected == null) return count;
-
-    final names = [
-      for (final id in selected) viewModel.genreNames[id] ?? '$id',
-    ];
+    final names = [for (final id in selected) vm.genreNames[id] ?? '$id'];
     return '$count · ${names.join(', ')}';
   }
 
   @override
   Widget build(BuildContext context) {
+    final vm = widget.viewModel;
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
+    // 첫 page만으로 화면이 다 차지 않으면 스크롤이 없으니 그려진 뒤 한 번 더 확인한다.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _maybeLoadMore();
+    });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,7 +188,7 @@ class _MovieListContent extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
-            _summary,
+            _summary(vm),
             style: textTheme.bodySmall?.copyWith(
               color: colorScheme.onSurfaceVariant,
             ),
@@ -193,8 +196,10 @@ class _MovieListContent extends StatelessWidget {
         ),
         Expanded(
           child: MovieGrid(
-            movies: viewModel.movies,
-            genreNames: viewModel.genreNames,
+            controller: _controller,
+            movies: vm.movies,
+            genreNames: vm.genreNames,
+            footer: MoviePageFooter(vm: vm, autoLoad: true),
           ),
         ),
       ],

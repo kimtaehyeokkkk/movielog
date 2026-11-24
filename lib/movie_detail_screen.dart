@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:go_router/go_router.dart';
 import 'package:movielog/data/models/tmdb_movie_dto.dart';
+import 'package:movielog/view_models/favorite_detail_view_model.dart';
 import 'package:movielog/view_models/movie_detail_view_model.dart';
 import 'package:movielog/view_models/submit_status.dart';
 import 'package:movielog/widgets/common_app_bar.dart';
+import 'package:movielog/widgets/favorite_button.dart';
 import 'package:movielog/widgets/rating_dialog.dart';
 import 'package:movielog/widgets/tmdb_poster_image.dart';
 import 'package:provider/provider.dart';
@@ -17,7 +19,14 @@ class MovieDetailScreen extends StatefulWidget {
 }
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
-  bool _isFavorite = false;
+  @override
+  void initState() {
+    super.initState();
+    // 서버의 즐겨찾기 여부는 화면이 처음 만들어질 때 한 번만 조회한다. (build에서 조회 X)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<FavoriteDetailViewModel>().load();
+    });
+  }
 
   void _goBack() {
     if (context.canPop()) {
@@ -27,33 +36,31 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     }
   }
 
-  void _toggleFavorite() {
-    setState(() {
-      _isFavorite = !_isFavorite;
-    });
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(_isFavorite ? '즐겨찾기에 추가했습니다.' : '즐겨찾기에서 삭제했습니다.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-  }
-
   Future<void> _openRatingDialog() async {
     final viewModel = context.read<MovieDetailViewModel>();
+    final favorite = context.read<FavoriteDetailViewModel>();
+    // 즐겨찾기 여부를 서버에서 확인했고 아직 즐겨찾기하지 않은 영화일 때만 체크박스를 보여준다.
+    final alreadyFavorite = favorite.isFavorite;
+    final showAddToFavorite = favorite.hasLoadedStatus && !alreadyFavorite;
 
     final saved = await showDialog<bool>(
       context: context,
       barrierDismissible: false, // 저장 중 바깥 탭으로 닫히는 것도 막는다.
       builder: (_) => RatingDialog(
-        onSubmit: (score, comment) async {
-          await viewModel.createRating(score: score, comment: comment);
+        showAddToFavorite: showAddToFavorite,
+        onSubmit: (score, comment, addToFavorites) async {
+          await viewModel.saveRating(
+            score: score,
+            comment: comment,
+            addToFavorites: addToFavorites,
+            alreadyFavorite: alreadyFavorite || !favorite.hasLoadedStatus,
+          );
           if (viewModel.submitStatus != SubmitStatus.success) {
-            // Dialog가 닫히지 않고 이 문구를 보여준다. (입력값 유지)
-            throw SubmitFailure(viewModel.submitMessage ?? '저장에 실패했습니다.');
+            // 입력 오류·네트워크 실패는 Dialog 안에, 409·회원 없음은 Dialog를 닫고 Snackbar로.
+            throw SubmitFailure(
+              viewModel.submitMessage ?? '저장에 실패했습니다.',
+              closeDialog: viewModel.submitClosesDialog,
+            );
           }
         },
       ),
@@ -66,10 +73,12 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       ..hideCurrentSnackBar()
       ..showSnackBar(
         const SnackBar(
-          content: Text('평점을 등록했습니다. 마이페이지의 "내가 등록한 평점"에서 확인할 수 있습니다.'),
+          content: Text('평점을 저장했습니다.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
+    // 함께 즐겨찾기했을 수 있으니 북마크 상태를 서버 값으로 다시 맞춘다.
+    favorite.load();
   }
 
   // release_date가 null이거나 빈 문자열이면 연도를 표시하지 않는다.
@@ -106,33 +115,48 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(movie.title, style: textTheme.headlineSmall),
-                  if (year != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      year,
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 8),
+                  // 제목·정보 오른쪽에 즐겨찾기(북마크) 버튼
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // TMDB vote_average는 10점 만점이라 별 5개에 맞춰 절반으로 표시한다.
-                      RatingBarIndicator(
-                        rating: movie.voteAverage / 2,
-                        itemCount: 5,
-                        itemSize: 18,
-                        unratedColor: colorScheme.primary.withValues(alpha: 0.2),
-                        itemBuilder: (context, index) =>
-                            Icon(Icons.star, color: colorScheme.primary),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(movie.title, style: textTheme.headlineSmall),
+                            if (year != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                year,
+                                style: textTheme.bodyMedium?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                // TMDB vote_average는 10점 만점이라 별 5개에 맞춰 절반으로 표시한다.
+                                RatingBarIndicator(
+                                  rating: movie.voteAverage / 2,
+                                  itemCount: 5,
+                                  itemSize: 18,
+                                  unratedColor:
+                                      colorScheme.primary.withValues(alpha: 0.2),
+                                  itemBuilder: (context, index) =>
+                                      Icon(Icons.star, color: colorScheme.primary),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '${movie.voteAverage.toStringAsFixed(1)} / 10',
+                                  style: textTheme.bodyMedium,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '${movie.voteAverage.toStringAsFixed(1)} / 10',
-                        style: textTheme.bodyMedium,
-                      ),
+                      const FavoriteButton(),
                     ],
                   ),
                   if (savedScore != null) ...[
@@ -167,36 +191,14 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
           ],
         ),
       ),
+      // 즐겨찾기 버튼이 제목 옆으로 옮겨가 평점 남기기가 전체 너비를 쓴다.
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 보호 화면이라 로그인 상태에서만 열린다. 등록은 토큰으로 사용자를 식별한다.
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _toggleFavorite,
-                      icon: Icon(
-                        _isFavorite ? Icons.bookmark : Icons.bookmark_border,
-                      ),
-                      label: const Text('즐겨찾기'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: viewModel.canRate ? _openRatingDialog : null,
-                      icon: const Icon(Icons.rate_review),
-                      label: const Text('평점 남기기'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+          child: FilledButton.icon(
+            onPressed: viewModel.canRate ? _openRatingDialog : null,
+            icon: const Icon(Icons.rate_review),
+            label: const Text('평점 남기기'),
           ),
         ),
       ),

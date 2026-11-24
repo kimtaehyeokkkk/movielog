@@ -15,14 +15,14 @@ class SignUpService {
   // 한글 닉네임과 이메일의 @를 path에 넣기 전에 인코딩한다.
   Future<bool> checkNickname(String nickname) async {
     final encoded = Uri.encodeComponent(nickname.trim());
-    final response = await _dio.get('/v7/members/nickname/$encoded');
+    final response = await _dio.get('/v8/members/nickname/$encoded');
     return CheckResult.fromJson(response.data as Map<String, dynamic>)
         .available;
   }
 
   Future<bool> checkEmail(String email) async {
     final encoded = Uri.encodeComponent(email.trim());
-    final response = await _dio.get('/v7/members/email/$encoded');
+    final response = await _dio.get('/v8/members/email/$encoded');
     return CheckResult.fromJson(response.data as Map<String, dynamic>)
         .available;
   }
@@ -31,7 +31,7 @@ class SignUpService {
   Future<CommonResponse<SignUpResult>> signUp(
     CreateMemberRequest request,
   ) async {
-    final response = await _dio.post('/v7/members', data: request.toJson());
+    final response = await _dio.post('/v8/members', data: request.toJson());
     return CommonResponse<SignUpResult>.fromJson(
       response.data as Map<String, dynamic>,
       (value) => SignUpResult.fromJson(value as Map<String, dynamic>),

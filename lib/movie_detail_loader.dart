@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:movielog/data/models/tmdb_movie_dto.dart';
+import 'package:movielog/data/services/movie_record_api_service.dart';
 import 'package:movielog/data/services/rating_api_service.dart';
 import 'package:movielog/data/services/tmdb_movie_service.dart';
 import 'package:movielog/movie_detail_screen.dart';
@@ -81,6 +82,7 @@ class _MovieDetailLoaderState extends State<MovieDetailLoader> {
         return ChangeNotifierProvider<MovieDetailViewModel>(
           create: (context) => MovieDetailViewModel(
             context.read<RatingApiService>(),
+            context.read<MovieRecordApiService>(),
             context.read<AuthViewModel>(),
             context.read<SessionRatings>(),
             movie,

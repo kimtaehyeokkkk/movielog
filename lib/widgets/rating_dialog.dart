@@ -13,6 +13,7 @@ class RatingDialog extends StatefulWidget {
     this.initialScore = 0,
     this.initialComment,
     this.title = '평점을 남겨주세요',
+    this.showAddToFavorite = false,
     required this.onSubmit,
   });
 
@@ -20,7 +21,12 @@ class RatingDialog extends StatefulWidget {
   final int initialScore;
   final String? initialComment;
   final String title;
-  final Future<void> Function(int score, String? comment) onSubmit;
+  // Challenge: 상세 화면의 "평점 남기기"에서 아직 즐겨찾기하지 않은 영화일 때만 true.
+  // 평점 수정에서도 같은 Dialog를 쓰므로 기본은 숨김이다.
+  final bool showAddToFavorite;
+  // addToFavorites는 체크박스가 보이지 않으면 항상 false다.
+  final Future<void> Function(int score, String? comment, bool addToFavorites)
+      onSubmit;
 
   @override
   State<RatingDialog> createState() => _RatingDialogState();
@@ -34,6 +40,7 @@ class _RatingDialogState extends State<RatingDialog> {
   late final _commentController =
       TextEditingController(text: widget.initialComment ?? '');
   bool _isSubmitting = false;
+  bool _addToFavorites = false;
   String? _errorText;
 
   @override
@@ -72,6 +79,18 @@ class _RatingDialogState extends State<RatingDialog> {
                   border: OutlineInputBorder(),
                 ),
               ),
+              if (widget.showAddToFavorite)
+                CheckboxListTile(
+                  value: _addToFavorites,
+                  onChanged: _isSubmitting
+                      ? null
+                      : (value) =>
+                          setState(() => _addToFavorites = value ?? false),
+                  title: const Text('즐겨찾기에도 추가'),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                ),
               if (_errorText != null) ...[
                 const SizedBox(height: 8),
                 Text(
@@ -113,11 +132,24 @@ class _RatingDialogState extends State<RatingDialog> {
 
     try {
       // 빈 코멘트는 null로 바꿔 보낸다.
-      await widget.onSubmit(_score, trimmed.isEmpty ? null : trimmed);
+      await widget.onSubmit(
+        _score,
+        trimmed.isEmpty ? null : trimmed,
+        widget.showAddToFavorite && _addToFavorites,
+      );
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (error) {
       if (!mounted) return;
+      // 다시 시도해도 해결되지 않는 오류는 Dialog를 닫고 Snackbar로 알린다.
+      if (error is SubmitFailure && error.closeDialog) {
+        final messenger = ScaffoldMessenger.of(context);
+        Navigator.pop(context, false);
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(error.message)));
+        return;
+      }
       // 실패해도 로딩을 풀어 다시 시도할 수 있게 하고, 입력한 별점·코멘트는 그대로 둔다.
       setState(() {
         _isSubmitting = false;

@@ -44,6 +44,25 @@ class TmdbMovieService {
     );
   }
 
+  // 영화 검색. 검색어가 비어 있으면 ViewModel에서 먼저 막아 호출하지 않는다.
+  Future<TmdbMoviePageDto> searchMovies({
+    required int page,
+    required String query,
+  }) async {
+    final response = await _dio.get(
+      '/search/movie',
+      queryParameters: {
+        'query': query,
+        'page': page,
+        'language': 'ko-KR',
+        'include_adult': false,
+      },
+    );
+    return TmdbMoviePageDto.fromJson(
+      response.data as Map<String, dynamic>,
+    );
+  }
+
   // GET /movie/{movie_id}는 영화 객체를 바로 반환한다. (목록과 달리 genre_ids 대신 genres)
   Future<TmdbMovieDto> fetchMovieDetail(int movieId) async {
     final response = await _dio.get(
