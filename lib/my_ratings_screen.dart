@@ -65,7 +65,7 @@ Future<void> _onEditPressed(BuildContext context, RatingDto rating) async {
       title: '평점 수정',
       initialScore: rating.score,
       initialComment: rating.comment, // null이면 빈 칸으로 시작
-      onSubmit: (score, comment) => viewModel.updateRating(
+      onSubmit: (score, comment, _) => viewModel.updateRating(
         ratingId: rating.ratingId,
         score: score,
         comment: comment,

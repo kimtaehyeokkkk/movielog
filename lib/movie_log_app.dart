@@ -3,6 +3,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:movielog/core/network/movie_log_client.dart';
 import 'package:movielog/core/network/tmdb_client.dart';
+import 'package:movielog/core/session/auth_session_bridge.dart';
+import 'package:movielog/core/session/session_guard.dart';
+import 'package:movielog/data/services/favorite_api_service.dart';
+import 'package:movielog/data/services/movie_record_api_service.dart';
 import 'package:movielog/core/storage/token_storage.dart';
 import 'package:movielog/data/services/auth_api_service.dart';
 import 'package:movielog/data/services/member_api_service.dart';
@@ -52,6 +56,13 @@ class _MovieLogAppState extends State<MovieLogApp> {
         Provider<RatingApiService>(
           create: (_) => RatingApiService(_publicClient, _authClient),
         ),
+        // 9주차: 즐겨찾기·영화 기록(Challenge)도 보호 Client (새 Client를 만들지 않음)
+        Provider<FavoriteApiService>(
+          create: (_) => FavoriteApiService(_authClient),
+        ),
+        Provider<MovieRecordApiService>(
+          create: (_) => MovieRecordApiService(_authClient),
+        ),
         // Service를 주입받는 앱 전역 상태
         ChangeNotifierProvider<AuthViewModel>(
           create: (context) => AuthViewModel(
@@ -62,6 +73,24 @@ class _MovieLogAppState extends State<MovieLogApp> {
         ),
         ChangeNotifierProvider<SessionRatings>(
           create: (context) => SessionRatings(context.read<AuthViewModel>()),
+        ),
+        // AuthViewModel의 세션 변화를 SessionGuard에 전달한다.
+        // 처음부터 세션 변화를 따라가도록 바로 만든다. (lazy: false)
+        Provider<AuthSessionBridge>(
+          lazy: false,
+          create: (context) {
+            final auth = context.read<AuthViewModel>();
+            return AuthSessionBridge(
+              authSignals: auth,
+              sessionVersion: () => auth.sessionVersion,
+              verifiedEmail: () =>
+                  auth.status == AuthStatus.signedIn ? auth.member?.email : null,
+            );
+          },
+          dispose: (_, bridge) => bridge.dispose(),
+        ),
+        Provider<SessionGuard>(
+          create: (context) => context.read<AuthSessionBridge>().guard,
         ),
       ],
       child: const _MovieLogRouterApp(),

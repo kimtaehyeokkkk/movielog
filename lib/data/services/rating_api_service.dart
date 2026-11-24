@@ -38,13 +38,13 @@ class RatingApiService {
   // v7에도 토큰 기반 "내 평점 목록" GET은 없다. 로그인·내 정보 응답에 memberId가 없어서
   // 지금 화면에서는 쓰지 않고, 공개 조회 계약만 남겨 둔다.
   Future<List<RatingDto>> fetchMemberRatings(int memberId) async {
-    final response = await _publicDio.get('/v7/members/$memberId/ratings');
+    final response = await _publicDio.get('/v8/members/$memberId/ratings');
     return parseRatingList(response.data);
   }
 
   // 201 + result 평점 객체. body에 memberId를 넣지 않는다.
   Future<RatingDto> createRating(CreateRatingRequest request) async {
-    final response = await _authDio.post('/v7/ratings', data: request.toJson());
+    final response = await _authDio.post('/v8/ratings', data: request.toJson());
     return parseRatingResult(response.data);
   }
 
@@ -54,7 +54,7 @@ class RatingApiService {
     required UpdateRatingRequest request,
   }) async {
     final response = await _authDio.patch(
-      '/v7/ratings/$ratingId',
+      '/v8/ratings/$ratingId',
       data: request.toJson(),
     );
     return parseRatingResult(response.data);
@@ -62,7 +62,7 @@ class RatingApiService {
 
   // v6의 204와 달리 200 + 공통 형식(result null)이다.
   Future<void> deleteRating(int ratingId) async {
-    final response = await _authDio.delete('/v7/ratings/$ratingId');
+    final response = await _authDio.delete('/v8/ratings/$ratingId');
     if (response.statusCode != 200) {
       throw StateError('예상하지 못한 삭제 응답: ${response.statusCode}');
     }

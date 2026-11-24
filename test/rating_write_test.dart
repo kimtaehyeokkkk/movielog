@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:movielog/data/models/rating_dto.dart';
 import 'package:movielog/data/models/rating_request.dart';
 import 'package:movielog/data/models/tmdb_movie_dto.dart';
+import 'package:movielog/data/services/movie_record_api_service.dart';
 import 'package:movielog/data/services/rating_api_service.dart';
 import 'package:movielog/data/services/tmdb_movie_service.dart';
 import 'package:movielog/view_models/auth_view_model.dart';
@@ -101,8 +102,13 @@ class _Fixture {
         auth,
       );
 
-  MovieDetailViewModel detail(int movieId) =>
-      MovieDetailViewModel(service, auth, sessionRatings, _movie(movieId));
+  MovieDetailViewModel detail(int movieId) => MovieDetailViewModel(
+        service,
+        MovieRecordApiService(Dio()),
+        auth,
+        sessionRatings,
+        _movie(movieId),
+      );
 }
 
 void main() {
